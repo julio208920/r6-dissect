@@ -12,6 +12,10 @@ on:
   push:
     paths:
       - "desktop/**"
+      - "dissect/**"
+      - "go.mod"
+      - "go.sum"
+      - "main.go"
       - "scripts/*.py"
       - "scripts/requirements.txt"
       - ".github/workflows/windows-app.yaml"
@@ -39,6 +43,8 @@ jobs:
       - name: Test
         shell: pwsh
         run: |
+          go test ./...
+          if ($LASTEXITCODE) { throw "Go parser tests failed" }
           python -m unittest discover -s scripts
           if ($LASTEXITCODE) { throw "app tests failed" }
           python -m unittest discover -s desktop

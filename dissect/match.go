@@ -43,7 +43,7 @@ func (m *MatchReader) Listen(pattern []byte, callback func(r *Reader) error) {
 	for i = 0; i < len(m.queries); i++ {
 		if bytes.Equal(m.queries[i], pattern) {
 			m.listeners[i] = append(m.listeners[i], callback)
-			break
+			return
 		}
 	}
 	m.queries = append(m.queries, pattern)
