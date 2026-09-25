@@ -24,9 +24,10 @@ From the repo root, in PowerShell:
 powershell -ExecutionPolicy Bypass -File desktop\build.ps1
 ```
 
-This needs Python 3.12+ (it uses `.venv` if there is one), Go 1.23+ (or an
-already built `r6-dissect.exe` at the repo root) and Inno Setup 6, which the
-script installs with winget if it's missing. It produces:
+This needs Python 3.12+ (it uses `.venv` if there is one), Go 1.23+ and Inno
+Setup 6, which the script installs with winget if it's missing. The build
+always compiles the bundled parser from the current source so it cannot
+silently package an outdated executable. It produces:
 
 - `dist\R6MatchStats\R6MatchStats.exe` (run it to try the build)
 - `dist\R6MatchStats-Setup.exe` (the installer)

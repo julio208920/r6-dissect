@@ -1,19 +1,20 @@
 # Builds the Windows app: dist\R6MatchStats (the app), dist\R6MatchStats-Setup.exe
 # (the installer) and dist\R6MatchStats-Windows.zip (the portable version).
 # Run from anywhere:  powershell -ExecutionPolicy Bypass -File desktop\build.ps1
-# Needs Python 3.12+ (uses .venv if present), Go 1.23+ (or an existing r6-dissect.exe)
-# and Inno Setup 6 for the installer (installed with winget or choco if missing).
+# Needs Python 3.12+ (uses .venv if present) and Go 1.23+.
+# Inno Setup 6 is installed for the installer with winget or choco if missing.
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
-if (Get-Command go -ErrorAction SilentlyContinue) {
-    # -trimpath keeps this PC's folder paths out of the exe. Don't strip it (-ldflags "-s -w"):
-    # antivirus programs tend to flag stripped Go programs.
-    go build -trimpath -o r6-dissect.exe .
-    if ($LASTEXITCODE) { throw "go build failed" }
-} elseif (-not (Test-Path r6-dissect.exe)) {
-    throw "Install Go (https://go.dev/dl/) or build r6-dissect.exe first."
+$go = Get-Command go -ErrorAction SilentlyContinue
+if (-not $go) {
+    throw "Go 1.23+ is required to build the bundled parser from current source. Install Go from https://go.dev/dl/."
 }
+# Never package an existing parser binary: it may predate the source and silently omit stats fixes.
+# -trimpath keeps this PC's folder paths out of the exe. Don't strip it (-ldflags "-s -w"):
+# antivirus programs tend to flag stripped Go programs.
+go build -trimpath -o r6-dissect.exe .
+if ($LASTEXITCODE) { throw "go build failed" }
 
 $python = if (Test-Path .venv\Scripts\python.exe) { ".venv\Scripts\python.exe" } else { "python" }
 & $python -m pip install --quiet -r scripts\requirements.txt -r desktop\requirements-build.txt

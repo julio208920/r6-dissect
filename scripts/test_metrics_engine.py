@@ -89,6 +89,19 @@ class TestRoundStats(unittest.TestCase):
         a3 = s["a3"]
         self.assertEqual((a3.plants, a3.rounds_played, a3.kost_pct, a3.srv_pct), (1, 2, 100.0, 50.0))
 
+    def test_parser_plant_and_defuse_events_reach_player_stats(self):
+        disable = {"type": {"name": "DefuserDisableComplete", "id": 5},
+                   "username": "a2", "timeInSeconds": 10}
+        match = normalize_from_r6_dissect({"rounds": [
+            rnd(0, [plant(60, "a1")], attack=0),
+            rnd(1, [disable], attack=1),
+        ]})
+        stats = compute_match_metrics(match)
+
+        self.assertEqual((stats["a1"].plants, stats["a1"].defuses), (1, 0))
+        self.assertEqual((stats["a2"].plants, stats["a2"].defuses), (0, 1))
+        self.assertEqual((stats["a1"].objectives, stats["a2"].objectives), (1, 1))
+
     def test_assists_from_r6_dissect_stats(self):
         s = metrics(rnd(0, [kill(170, "a1", "b1")], stats=[{"username": "a2", "assists": 1}]))
         self.assertEqual(s["a2"].assists, 1)
