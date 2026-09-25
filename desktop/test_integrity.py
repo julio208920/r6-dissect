@@ -11,6 +11,18 @@ import unittest
 from pathlib import Path
 
 from integrity import AppIntegrity
+from launcher import dashboard_is_rendered
+
+
+class DashboardSmokeTest(unittest.TestCase):
+    def test_accepts_dashboard_page_title(self):
+        self.assertTrue(dashboard_is_rendered("Dashboard\nReplay source\nUpload"))
+
+    def test_accepts_legacy_report_page_title(self):
+        self.assertTrue(dashboard_is_rendered("Match Report\nReplay source\nUpload"))
+
+    def test_rejects_startup_or_failure_pages(self):
+        self.assertFalse(dashboard_is_rendered("R6 Match Stats couldn't start"))
 
 
 class TestAppIntegrity(unittest.TestCase):

@@ -245,7 +245,7 @@ def smoke_test(window) -> dict:
             seen = {"js_error": repr(e)}
         if seen.get("error"):
             break
-        if "Match Report" in seen.get("text", ""):
+        if dashboard_is_rendered(seen.get("text", "")):
             time.sleep(2)  # let the page finish painting for the screenshot
             try:
                 from PIL import ImageGrab
@@ -256,6 +256,11 @@ def smoke_test(window) -> dict:
             return {"ok": True, **seen}
         time.sleep(1)
     return {"ok": False, **seen}
+
+
+def dashboard_is_rendered(text: str) -> bool:
+    """Recognize the current page name while preserving older report wording."""
+    return "Dashboard" in text or "Match Report" in text
 
 
 def run_in_browser(server: Server) -> int:
