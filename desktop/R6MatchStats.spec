@@ -13,8 +13,8 @@ APP_VERSION = (STAMPED_VERSION.read_text().strip() if STAMPED_VERSION.is_file()
                else re.search(r'or "([\d.]+)"', (ROOT / "scripts" / "app_info.py").read_text()).group(1))
 
 # The app ships as plain files, because Streamlit runs app.py (and its pages) from disk.
-APP_FILES = ["app.py", "report.py", "download.py", "app_info.py", "parser.py", "metrics_engine.py",
-             "sample_data.py", "icon.png"]
+APP_FILES = ["app.py", "report.py", "download.py", "app_info.py", "parser.py", "file_guard.py",
+             "metrics_engine.py", "sample_data.py", "icon.png"]
 datas = [(str(ROOT / "scripts" / name), "scripts") for name in APP_FILES]
 for stamp in ("repo.txt", "version.txt"):
     if (ROOT / "build" / stamp).is_file():

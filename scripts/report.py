@@ -7,18 +7,23 @@ scoreboard for every player, a round-by-round breakdown, and CSV/JSON exports.
 
 from __future__ import annotations
 
+import contextlib
 import html
 import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 
-from app_info import APP_NAME, APP_VERSION, is_loopback, is_public_host, is_windows_app
-from metrics_engine import PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows
+from app_info import APP_NAME, APP_VERSION, NOTICE, is_loopback, is_public_host, is_windows_app
+from file_guard import ReplayScanner
+from metrics_engine import (
+    PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, rows_csv, scoreboard_text,
+)
 from parser import (
     ReplayParseError, collect_rec_files, find_replay_folders, group_by_match, load_demo_match,
     parse_match, r6_dissect_available, raw_shape_preview, save_uploads,
@@ -32,23 +37,56 @@ FOLDER = "Folder or zip on this computer"
 REPLAYS_FOLDER = "From the replays/ folder"
 
 
+WORKDIR_PREFIX = "r6-match-"
+WORKDIR_MAX_IDLE = 3600  # seconds; extracted replays are deleted after an hour unused
+
+
+def _sweep_idle_workdirs() -> None:
+    """Delete extracted replays nobody has used for an hour, so uploads don't pile
+    up on a server (a visitor leaving the page never tells us)."""
+    cutoff = time.time() - WORKDIR_MAX_IDLE
+    for d in Path(tempfile.gettempdir()).glob(WORKDIR_PREFIX + "*"):
+        try:
+            if d.is_dir() and d.stat().st_mtime < cutoff:
+                shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            pass
+
+
+@st.cache_resource(show_spinner=False)
+def _start_workdir_sweeper() -> None:
+    """Sweep idle workdirs every 10 minutes for as long as this server runs, even
+    when nobody's visiting. Started once per server process."""
+    def sweep_forever() -> None:
+        while True:
+            time.sleep(600)
+            _sweep_idle_workdirs()
+
+    threading.Thread(target=sweep_forever, name="workdir-sweeper", daemon=True).start()
+
+
 def _load_source(sig, collect) -> dict:
-    """Find the matches in a source once per source: collect(workdir) -> .rec paths.
-    Zips/uploads are extracted into a workdir that lives as long as the source is
-    selected, so each match can be parsed only when it's picked."""
+    """Find the matches in a source once per source: collect(workdir, scanner) -> .rec
+    paths. Zips/uploads are extracted into a workdir that lives as long as the source
+    is selected (and is in use), so each match can be parsed only when it's picked."""
     state = st.session_state.get("source")
     if state and state["sig"] == sig:
+        with contextlib.suppress(OSError):
+            os.utime(state["workdir"])  # still in use: keep it from being swept
         return state
     if state:
         shutil.rmtree(state["workdir"], ignore_errors=True)
-    workdir = tempfile.mkdtemp(prefix="r6-match-")
+    _sweep_idle_workdirs()
+    workdir = tempfile.mkdtemp(prefix=WORKDIR_PREFIX)
+    scanner = ReplayScanner()
     state = {"sig": sig, "workdir": workdir, "parsed": {}}
     try:
-        state["groups"] = group_by_match(collect(Path(workdir)))
+        state["groups"] = group_by_match(collect(Path(workdir), scanner))
         if not state["groups"]:
-            state["error"] = "No .rec replay files found."
+            state["error"] = "No Siege replay files found."
     except ReplayParseError as e:
         state["error"] = str(e)
+    state["skipped"] = scanner.summary()
     st.session_state["source"] = state
     return state
 
@@ -77,6 +115,8 @@ def scoreboard_html(team_name: str, won: bool, rows: list[dict]) -> str:
             f"<thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 
 
+_start_workdir_sweeper()
+
 # Reading folders on disk only makes sense, and is only safe, when the visitor is
 # on the machine running the app -- never on the public website.
 local_files = not is_public_host() and is_loopback(st.context.ip_address)
@@ -89,7 +129,7 @@ else:
 
 # ------------------------------------------------------------- sidebar ----
 with st.sidebar:
-    st.caption("Drop in a match replay for a Pro League-style scoreboard of every player.")
+    st.caption("Drop in a match replay for an esports-style scoreboard of every player.")
     if not r6_dissect_available():
         st.warning("r6-dissect not found, so real replays can't be parsed. "
                    "See the README to build it, or use the demo match below.", icon="⚠️")
@@ -98,6 +138,7 @@ with st.sidebar:
     st.caption("EPS · KD (+/-) · Entry · KOST · KPR · HS · SRV · Clutches · Multikills · "
                "Objectives · Dead for trade kill · Trade kills")
     st.caption(f"{APP_NAME} {APP_VERSION}")
+    st.caption(NOTICE)
 
 st.title("Match Report")
 
@@ -129,7 +170,7 @@ else:
                        "reads the folder directly.")
         if uploaded:
             sig = ("upload",) + tuple((u.name, u.size, u.file_id) for u in uploaded)
-            picked = (sig, lambda td, u=uploaded: save_uploads(u, td))
+            picked = (sig, lambda td, sc, u=uploaded: save_uploads(u, td, sc))
     elif source == FOLDER:
         found = find_replay_folders()
         typed = st.text_input(
@@ -144,7 +185,7 @@ else:
             if not p.exists():
                 st.error(f"Not found: {p}")
             else:
-                picked = (("path", str(p), p.stat().st_mtime), lambda td, c=p: collect_rec_files(c, td))
+                picked = (("path", str(p), p.stat().st_mtime), lambda td, sc, c=p: collect_rec_files(c, td, sc))
     else:
         REPLAYS_DIR.mkdir(exist_ok=True)
         choices = sorted(
@@ -157,10 +198,12 @@ else:
             st.info(f"No matches in `{REPLAYS_DIR}` yet.")
         else:
             chosen = st.selectbox("Match", choices, format_func=lambda p: p.name + ("/" if p.is_dir() else ""))
-            picked = (("path", str(chosen), chosen.stat().st_mtime), lambda td, c=chosen: collect_rec_files(c, td))
+            picked = (("path", str(chosen), chosen.stat().st_mtime), lambda td, sc, c=chosen: collect_rec_files(c, td, sc))
 
     if picked is not None:
         state = _load_source(*picked)
+        if state["skipped"]:
+            st.warning(state["skipped"], icon="🛡️")
         if "error" in state:
             st.error(state["error"])
             st.stop()
@@ -221,15 +264,16 @@ for team_idx, team_name in enumerate(team_names[:2]):
         won = score[team_idx] > score[1 - team_idx]
         st.markdown(scoreboard_html(team_name, won, team_rows), unsafe_allow_html=True)
 
-numeric = pd.DataFrame(leaderboard_rows(stats))
-numeric.insert(1, "Team Name", [team_names[t] for t in numeric["Team"]])
-c1, c2, _ = st.columns([1, 1, 2])
-c1.download_button("⬇ CSV", numeric.to_csv(index=False).encode("utf-8"),
+c1, c2, c3, _ = st.columns([1, 1, 1, 3])
+c1.download_button("⬇ CSV", rows_csv([{"Player": r["Player"], "Team Name": team_names[r["Team"]], **r}
+                                       for r in leaderboard_rows(stats)]).encode("utf-8"),
                    file_name=f"{match['match_id']}_stats.csv", mime="text/csv")
 c2.download_button("⬇ JSON", json.dumps({
     "map": match["map"], "match_id": match["match_id"], "teams": team_names,
     "score": score, "players": rows}, indent=2, ensure_ascii=False).encode("utf-8"),
     file_name=f"{match['match_id']}_stats.json", mime="application/json")
+c3.download_button("⬇ TXT", (scoreboard_text(match, rows) + "\n").encode("utf-8"),
+                   file_name=f"{match['match_id']}_stats.txt", mime="text/plain")
 
 # ------------------------------------------------------------ breakdown ---
 st.subheader("Round-by-round")

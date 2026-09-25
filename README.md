@@ -27,6 +27,9 @@ See [scripts/README.md](scripts/README.md) for details, including how to
 publish the website (Streamlit Community Cloud) and the Windows app (GitHub
 Releases).
 
+R6 Match Stats is an unofficial fan project and isn't endorsed by Ubisoft. See
+[its notes on Ubisoft's terms](scripts/README.md#ubisofts-terms).
+
 ## Current Features
 - Match Info (Game version, map, gamemode, match type, teams, players)
 - Match Feedback (Kills, headshots, objective locates, defuser plants/disables, BattlEye bans, DCs)

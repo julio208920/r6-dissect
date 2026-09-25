@@ -19,6 +19,7 @@ From source:  python desktop/launcher.py   (needs pip install pywebview)
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import socket
@@ -29,6 +30,12 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+
+from integrity import AppIntegrity
+
+# Never write compiled .pyc caches into the app's folder: the integrity check
+# would (rightly) flag them as files that weren't there when it was built.
+sys.dont_write_bytecode = True
 
 # the unpacked app, or the repo root when run from source
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
@@ -79,8 +86,9 @@ def _exit_with_parent(pid: int) -> None:
 
         SYNCHRONIZE = 0x00100000
         handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
-        if handle:
-            ctypes.windll.kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
+        if not handle:
+            return  # can't watch it; the window still stops this server when it quits
+        ctypes.windll.kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
     else:
         while True:
             try:
@@ -105,6 +113,39 @@ def start_server() -> tuple[subprocess.Popen, str]:
         creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
     )
     return proc, f"http://127.0.0.1:{port}/"
+
+
+def integrity_problems() -> list[str]:
+    """What's wrong with the installed app's files (see integrity.py); nothing when run from source."""
+    if not getattr(sys, "frozen", False):
+        return []
+    return AppIntegrity(Path(sys.executable).parent).verify()
+
+
+class Server:
+    """The dashboard's server: started only once the app's files check out, and
+    stopped when the app quits."""
+
+    def __init__(self) -> None:
+        self.proc: subprocess.Popen | None = None
+        self.url = ""
+        self.problems: list[str] = []
+
+    def start(self) -> bool:
+        """Check the app's files, then start the server. False if the check failed."""
+        if self.proc is None and not self.problems:
+            self.problems = integrity_problems()
+            if self.problems:
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                LOG_FILE.write_text("The app's files failed their check:\n" + "\n".join(self.problems) + "\n",
+                                    encoding="utf-8")
+                return False
+            self.proc, self.url = start_server()
+        return self.proc is not None
+
+    def stop(self) -> None:
+        if self.proc is not None:
+            self.proc.terminate()
 
 
 def wait_until_up(proc: subprocess.Popen, url: str) -> bool:
@@ -142,6 +183,17 @@ def failed_page() -> str:
                  f"If it keeps happening, the details are in <code>{LOG_FILE}</code></p>")
 
 
+TAMPERED = (f"{APP_NAME} won't start: some of its files were changed, added or removed since it was "
+            "installed, so it may not be safe to run. Uninstall it, then reinstall it from its official "
+            "download page.")
+
+
+def tampered_page(problems: list[str]) -> str:
+    listed = "".join(f"<li><code>{html.escape(p)}</code></li>" for p in problems[:8])
+    return _page(f"<h1>{APP_NAME} won't start</h1><p>{html.escape(TAMPERED)}</p>"
+                 f"<ul style='text-align:left; color:#8b949e'>{listed}</ul>")
+
+
 SMOKE_TEST_JS = """(() => {
   const main = document.querySelector('[data-testid="stMain"]') || document.querySelector('.stApp');
   const text = main ? main.innerText : '';
@@ -150,18 +202,25 @@ SMOKE_TEST_JS = """(() => {
 })()"""
 
 
-def run_window(proc: subprocess.Popen, url: str) -> int:
+def run_window(server: Server) -> int:
     import webview
 
-    webview.settings["ALLOW_DOWNLOADS"] = True  # the report's CSV and JSON buttons
+    webview.settings["ALLOW_DOWNLOADS"] = True  # the report's CSV, JSON and TXT buttons
     smoke_file = os.environ.get("R6_SMOKE_TEST")
     result = {"ok": False}
 
     def load(window) -> None:
-        if not wait_until_up(proc, url):
+        # the check runs while the window shows "Starting up...", before any server code
+        if not server.start():
+            window.load_html(tampered_page(server.problems))
+            if smoke_file:
+                result["tampered"] = server.problems
+                window.destroy()
+            return
+        if not wait_until_up(server.proc, server.url):
             window.load_html(failed_page())
             return
-        window.load_url(url)
+        window.load_url(server.url)
         if smoke_file:
             result.update(smoke_test(window))
             window.destroy()
@@ -199,16 +258,19 @@ def smoke_test(window) -> dict:
     return {"ok": False, **seen}
 
 
-def run_in_browser(proc: subprocess.Popen, url: str) -> int:
+def run_in_browser(server: Server) -> int:
     """Fallback without WebView2: open the default browser, and keep the server
     running until the user says to quit."""
     import webbrowser
 
-    if not wait_until_up(proc, url):
+    if not server.start():
+        message_box(TAMPERED + "\n\n" + "\n".join(server.problems[:8]))
+        return 1
+    if not wait_until_up(server.proc, server.url):
         message_box(f"{APP_NAME} couldn't start. The details are in {LOG_FILE}")
         return 1
-    webbrowser.open(url)
-    message_box(f"{APP_NAME} is open in your web browser at {url}\n\nClick OK to quit the app.")
+    webbrowser.open(server.url)
+    message_box(f"{APP_NAME} is open in your web browser at {server.url}\n\nClick OK to quit the app.")
     return 0
 
 
@@ -249,20 +311,21 @@ def main() -> int:
     if not os.environ.get("R6_SMOKE_TEST") and already_running():
         return 0
 
-    proc, url = start_server()
+    server = Server()
     try:
         if os.environ.get("R6_NO_WINDOW"):
-            return run_in_browser(proc, url)
+            return run_in_browser(server)
         try:
-            return run_window(proc, url)
+            return run_window(server)
         except Exception as e:  # no WebView2 runtime, or it failed to start
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
             with open(LOG_FILE, "a", encoding="utf-8") as log:
                 log.write(f"\nThe app window couldn't open ({e!r}); using the web browser instead.\n")
             if os.environ.get("R6_SMOKE_TEST"):
                 raise
-            return run_in_browser(proc, url)
+            return run_in_browser(server)
     finally:
-        proc.terminate()
+        server.stop()
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/redraskal/r6-dissect/dissect"
@@ -24,6 +25,11 @@ const (
 )
 
 func main() {
+	if os.Getenv("GOGC") == "" {
+		// Each round is decompressed into a ~100 MB buffer that's garbage once the round is
+		// read. Collecting sooner roughly halves peak memory at no measurable cost in speed.
+		debug.SetGCPercent(50)
+	}
 	setup()
 	format := viper.GetString("format")
 	in, err := viperFileOrDefault("input", os.Stdin, os.O_RDONLY)

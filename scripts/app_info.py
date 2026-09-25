@@ -19,6 +19,12 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 
 APP_NAME = "R6 Match Stats"
+# shown in the app, on the download page and in the installer (Ubisoft's EULA 1.3.j: no implied endorsement)
+NOTICE = (f"{APP_NAME} is an unofficial fan project, free to use. It isn't made, endorsed or supported by "
+          "Ubisoft. Rainbow Six and Ubisoft are trademarks of Ubisoft Entertainment.")
+HOW_IT_WORKS = ("It only reads match replay files the game has already saved. It never connects to the game, "
+                "Ubisoft's servers or your Ubisoft account, never reads or changes the game while it runs, "
+                "and gives no advantage in a match.")
 # the Windows build stamps the release's version (its tag without the "v") next to this file
 _stamped_version = _HERE / "version.txt"
 APP_VERSION = (_stamped_version.read_text().strip() if _stamped_version.is_file() else "") or "1.0.0"
@@ -26,6 +32,7 @@ APP_VERSION = (_stamped_version.read_text().strip() if _stamped_version.is_file(
 # the Windows app, as attached to each GitHub release by .github/workflows/windows-app.yaml
 WINDOWS_INSTALLER = "R6MatchStats-Setup.exe"
 WINDOWS_ZIP = "R6MatchStats-Windows.zip"  # the portable version: no install, run from any folder
+CHECKSUMS = "SHA256SUMS.txt"  # SHA-256 of both, written by desktop/build.ps1
 DEFAULT_REPO = "julio208920/r6-dissect"
 
 
@@ -54,27 +61,54 @@ WINDOWS_DOWNLOAD_URL = f"{RELEASES_URL}/download/{WINDOWS_INSTALLER}"
 WINDOWS_ZIP_URL = f"{RELEASES_URL}/download/{WINDOWS_ZIP}"
 
 
+def _get(url: str, accept: str = "application/vnd.github+json"):
+    request = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": APP_NAME})
+    return urllib.request.urlopen(request, timeout=5)
+
+
+def release_version(tag: str) -> str:
+    """The version number in a release tag: "v1.2.0", "app-v1.2.0" and "1.2.0" are all "1.2.0"."""
+    found = re.search(r"\d+(?:\.\d+){0,3}", tag)
+    return found.group(0) if found else tag
+
+
 def latest_release(repo: str = GITHUB_REPO) -> dict | None:
     """The newest published release that carries the Windows app, from the GitHub API:
-    {"version", "url", "installer", "zip"} (download links; "zip" may be None).
-    None if the repo has no such release yet. Raises OSError if GitHub can't be reached."""
-    request = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=20",
-                                     headers={"Accept": "application/vnd.github+json", "User-Agent": APP_NAME})
-    with urllib.request.urlopen(request, timeout=5) as response:
+    {"version", "url", "installer", "zip", "sha256"} ("zip" and the installer's
+    "sha256" may be None). None if the repo has no such release yet. Raises OSError
+    if GitHub can't be reached."""
+    with _get(f"https://api.github.com/repos/{repo}/releases?per_page=20") as response:
         releases = json.load(response)
     for release in releases:
         if release.get("draft") or release.get("prerelease"):
             continue
         assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", [])}
         if WINDOWS_INSTALLER in assets:
-            return {"version": release["tag_name"].lstrip("vV"), "url": release["html_url"],
-                    "installer": assets[WINDOWS_INSTALLER], "zip": assets.get(WINDOWS_ZIP)}
+            return {"version": release_version(release["tag_name"]), "url": release["html_url"],
+                    "installer": assets[WINDOWS_INSTALLER], "zip": assets.get(WINDOWS_ZIP),
+                    "sha256": _published_sha256(assets.get(CHECKSUMS), WINDOWS_INSTALLER)}
+    return None
+
+
+def _published_sha256(checksums_url: str | None, name: str) -> str | None:
+    """The SHA-256 a release's SHA256SUMS.txt lists for `name`, if it has one."""
+    if not checksums_url:
+        return None
+    try:
+        with _get(checksums_url, accept="application/octet-stream") as response:
+            text = response.read(64 * 1024).decode("ascii", errors="replace")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        digest, _, file = line.strip().partition("  ")
+        if file == name and re.fullmatch(r"[0-9a-f]{64}", digest):
+            return digest
     return None
 
 
 def version_tuple(version: str) -> tuple[int, ...]:
     """"1.10.2" -> (1, 10, 2), for comparing versions; non-numeric parts count as 0."""
-    return tuple(int(part) if part.isdigit() else 0 for part in re.split(r"[.+-]", version)[:3])
+    return tuple(int(part) if part.isdigit() else 0 for part in re.split(r"[.+-]", release_version(version))[:3])
 
 
 def is_windows_app() -> bool:

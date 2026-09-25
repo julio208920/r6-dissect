@@ -51,6 +51,13 @@ class TestReportPage(unittest.TestCase):
         at = run_app(R6_DESKTOP="1")
         self.assertEqual(at.radio[0].options, ["Folder or zip on this computer", "Upload"])
 
+    def test_demo_match_can_be_downloaded_as_csv_json_and_txt(self):
+        at = run_app(R6_HOSTED="1")
+        at.toggle[0].set_value(True).run()
+        buttons = at.get("download_button")
+        self.assertEqual([b.proto.label for b in buttons], ["⬇ CSV", "⬇ JSON", "⬇ TXT"])
+        self.assertEqual([Path(b.proto.url).suffix for b in buttons], [".csv", ".json", ".txt"])
+
     def test_demo_match_renders_both_scoreboards(self):
         at = run_app(R6_HOSTED="1")
         at.toggle[0].set_value(True).run()
@@ -143,6 +150,23 @@ class TestLatestRelease(unittest.TestCase):
     def test_version_order(self):
         self.assertGreater(app_info.version_tuple("1.10.0"), app_info.version_tuple("1.9.2"))
         self.assertEqual(app_info.version_tuple("1.0"), (1, 0))
+
+    def test_any_tag_style_gives_the_version(self):
+        for tag in ("v1.2.0", "V1.2.0", "app-v1.2.0", "1.2.0", "release-1.2.0"):
+            self.assertEqual(app_info.release_version(tag), "1.2.0", tag)
+        self.assertGreater(app_info.version_tuple("app-v1.2.0"), app_info.version_tuple("1.1.9"))
+
+    def test_published_checksum(self):
+        digest = "a" * 64
+        releases = io.BytesIO(json.dumps([self.release("v2.0.0", "R6MatchStats-Setup.exe", "SHA256SUMS.txt")]).encode())
+        sums = io.BytesIO(f"{digest}  R6MatchStats-Setup.exe\n{'b' * 64}  R6MatchStats-Windows.zip\n".encode())
+        responses = []
+        for body in (releases, sums):
+            response = mock.MagicMock()
+            response.__enter__.return_value = body
+            responses.append(response)
+        with mock.patch("urllib.request.urlopen", side_effect=responses):
+            self.assertEqual(app_info.latest_release("o/r")["sha256"], digest)
 
 
 class TestAppInfo(unittest.TestCase):

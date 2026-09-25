@@ -10,7 +10,8 @@ from __future__ import annotations
 import streamlit as st
 
 import app_info
-from app_info import APP_NAME, APP_VERSION, RELEASES_URL, WINDOWS_INSTALLER, WINDOWS_ZIP, is_windows_app, version_tuple
+from app_info import (APP_NAME, APP_VERSION, HOW_IT_WORKS, NOTICE, RELEASES_URL, WINDOWS_INSTALLER, WINDOWS_ZIP,
+                      is_windows_app, version_tuple)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -71,6 +72,23 @@ else:
                f"**Uninstall**. Prefer no installer? Get the [portable zip]({zip_url}) ({WINDOWS_ZIP}): "
                "extract it and run **R6MatchStats.exe** from the R6MatchStats folder.")
 
+    st.subheader("Check your download")
+    st.markdown(
+        "Only download the app from this page or its GitHub releases. To make sure your copy is the "
+        "one that was published and wasn't changed on the way, compare its SHA-256 fingerprint with "
+        "the published one. In PowerShell, in the folder you downloaded it to, run:"
+    )
+    st.code(f"Get-FileHash .\\{WINDOWS_INSTALLER}", language="powershell")
+    sha256 = release.get("sha256") if isinstance(release, dict) else None
+    if sha256:
+        st.markdown("The **Hash** it prints should be exactly:")
+        st.code(sha256.upper(), language=None)
+    else:
+        st.markdown(f"The **Hash** it prints should match the one for {WINDOWS_INSTALLER} in "
+                    f"**{app_info.CHECKSUMS}** on the [release page]({notes_url}).")
+    st.caption("Every time it opens, the app also checks that none of its own files were changed, added "
+               "or removed since it was installed, and refuses to run if they were.")
+
 st.subheader("Where are my replays?")
 st.markdown(
     "Siege saves each match you play in a **MatchReplay** folder inside the game's install folder, "
@@ -80,4 +98,12 @@ st.markdown(
     "- Ubisoft Connect: `C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\"
     "Tom Clancy's Rainbow Six Siege\\MatchReplay`\n\n"
     "No replays there? Make sure **Match Replay** is turned on in the game's options, then play a match."
+)
+
+st.subheader("About this app")
+st.markdown(
+    f"{NOTICE}\n\n{HOW_IT_WORKS}\n\n"
+    "**Your data:** the Windows app works on your PC, and the only thing it asks the internet for is "
+    "whether GitHub has a newer version. On the website, uploaded replays are used only to build your "
+    "report, and they're deleted once they've gone unused for an hour. Nothing is kept or shared."
 )

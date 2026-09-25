@@ -30,6 +30,8 @@ MinVersion=10.0
 OutputDir=..\dist
 OutputBaseFilename=R6MatchStats-Setup
 SetupIconFile=assets\app.ico
+; "unofficial, not endorsed by Ubisoft" and what the app does and doesn't do (written by build.ps1)
+InfoBeforeFile=..\build\notice.txt
 UninstallDisplayIcon={app}\R6MatchStats.exe
 UninstallDisplayName=R6 Match Stats
 WizardStyle=modern

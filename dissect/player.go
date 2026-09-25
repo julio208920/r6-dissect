@@ -156,7 +156,7 @@ func readPlayer(r *Reader) error {
 		TeamIndex:    teamIndex,
 		Operator:     Operator(op),
 		Spawn:        spawn,
-		DissectID:    id,
+		DissectID:    bytes.Clone(id), // a copy, so the round's whole replay buffer can be freed
 		uiID:         uiID,
 		controllerID: controllerID,
 	}

@@ -40,6 +40,8 @@ which already counts up.
 
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass, field
 
 TRADE_WINDOW_SECONDS = 10.0
@@ -343,6 +345,18 @@ def pro_league_rows(stats: dict[str, PlayerStats]) -> list[dict]:
     return rows
 
 
+def scoreboard_text(match: dict, rows: list[dict]) -> str:
+    """Plain-text scoreboard (pro_league_rows), one table per team, like the R6 Esports match page."""
+    cols = ("Player",) + PRO_LEAGUE_COLUMNS
+    widths = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in cols} if rows else {c: len(c) for c in cols}
+    names, score = match["team_names"], match["final_score"]
+    out = [f"{match['map']}  |  {names[0]} {score[0]} - {score[1]} {names[1]}  |  {len(match['rounds'])} round(s)"]
+    for team in (0, 1):
+        out += ["", names[team], "  ".join(c.ljust(widths[c]) for c in cols)]
+        out += ["  ".join(str(r[c]).ljust(widths[c]) for c in cols) for r in rows if r["Team"] == team]
+    return "\n".join(out)
+
+
 def leaderboard_rows(stats: dict[str, PlayerStats]) -> list[dict]:
     """Numeric rows (sortable, CSV-friendly), sorted by EPS desc."""
     rows = [{
@@ -370,3 +384,12 @@ def leaderboard_rows(stats: dict[str, PlayerStats]) -> list[dict]:
     } for s in stats.values()]
     rows.sort(key=lambda r: r["EPS"], reverse=True)
     return rows
+
+
+def rows_csv(rows: list[dict]) -> str:
+    """Rows that share their keys (e.g. leaderboard_rows) as CSV text, columns in key order."""
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=list(rows[0]) if rows else [])
+    writer.writeheader()
+    writer.writerows(rows)
+    return out.getvalue()

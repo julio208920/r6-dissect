@@ -3,12 +3,12 @@ package dissect
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"io"
-	"math"
 	"runtime"
-	"sort"
+	"slices"
 	"sync"
 
 	"github.com/klauspost/compress/zstd"
@@ -102,11 +102,12 @@ func (r *Reader) readChunkedData(genericReader io.Reader) error {
 	}
 	log.Debug().Msg("decompressing data")
 	zstdMagic := []byte{0x28, 0xB5, 0x2F, 0xFD}
-	zstdReader, _ := zstd.NewReader(nil)
+	zstdReader, _ := zstd.NewReader(nil, zstd.WithDecoderConcurrency(1))
+	defer zstdReader.Close()
 	memoryReader := bytes.NewReader(nil)
 	patternIndex := 0
 	sections := 0
-	data := make([]byte, 0)
+	var data bytes.Buffer
 	for !errors.Is(err, io.EOF) {
 		for patternIndex != 4 {
 			b, scanErr := r.Bytes(1)
@@ -133,16 +134,14 @@ func (r *Reader) readChunkedData(genericReader io.Reader) error {
 		if err = zstdReader.Reset(&tempReader); err != nil {
 			return err
 		}
-		decompressed, err := io.ReadAll(zstdReader)
-		if err != nil && !(len(decompressed) > 0 && errors.Is(err, zstd.ErrMagicMismatch)) {
+		// decode straight onto the end of data, rather than into a new buffer per section
+		n, err := zstdReader.WriteTo(&data)
+		if err != nil && !(n > 0 && errors.Is(err, zstd.ErrMagicMismatch)) {
 			return err
-		}
-		for _, b := range decompressed {
-			data = append(data, b)
 		}
 		r.offset += tempReader.n
 	}
-	r.b = data
+	r.b = data.Bytes()
 	r.offset = 0
 	log.Debug().Int("zstd_sections", sections).Send()
 	return nil
@@ -167,65 +166,52 @@ func (r *Reader) readNonChunkedData(genericReader io.Reader) error {
 }
 
 type match struct {
-	offset        int
+	offset        int // index of the pattern's last byte
 	listenerIndex int
 }
 
-func (r *Reader) worker(start int, end int, wg *sync.WaitGroup, matches chan<- match) {
-	defer wg.Done()
-	indexes := make([]int, len(r.queries))
-	log.Debug().Int("start", start).Int("end", end).Msg("worker")
-	for i := start; i <= end; i++ {
-		for j, query := range r.queries {
-			if r.b[i] == query[indexes[j]] {
-				indexes[j]++
-				if indexes[j] == len(query) {
-					indexes[j] = 0
-					matches <- match{i, j}
-				}
-			} else {
-				indexes[j] = 0
-			}
-		}
+// findQueries returns every occurrence of every query in r.b[start:end], in replay order.
+// Each query is searched for on its own goroutine with bytes.Index, which is many times
+// faster than comparing every byte against every query.
+func (r *Reader) findQueries(start, end int) []match {
+	if start < 0 || start >= end {
+		return nil
 	}
+	b := r.b[start:end]
+	found := make([][]match, len(r.queries))
+	var wg sync.WaitGroup
+	for j, query := range r.queries {
+		if len(query) == 0 {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; ; {
+				k := bytes.Index(b[i:], query)
+				if k < 0 {
+					return
+				}
+				i += k + len(query)
+				found[j] = append(found[j], match{start + i - 1, j})
+			}
+		}()
+	}
+	wg.Wait()
+	matches := slices.Concat(found...)
+	slices.SortFunc(matches, func(a, b match) int {
+		return cmp.Or(cmp.Compare(a.offset, b.offset), cmp.Compare(a.listenerIndex, b.listenerIndex))
+	})
+	return matches
 }
 
 // Read continues reading the replay past the header until the EOF.
 func (r *Reader) Read() (err error) {
-	numWorkers := 5
-	var wg sync.WaitGroup
-	channel := make(chan match, 300)
-	start := r.offset
 	end := len(r.b)
 	if r.readPartial {
 		end /= 3
 	}
-	blockSize := int(math.Floor(float64(end-start) / float64(numWorkers)))
-	log.Debug().Int("workers", numWorkers).Int("blockSize", blockSize).Send()
-	wg.Add(numWorkers)
-	for i := 0; i < numWorkers; i++ {
-		blockStart := r.offset + (i * blockSize)
-		blockEnd := blockStart + blockSize
-		if i > 0 {
-			blockStart += 1
-		}
-		if i == numWorkers-1 {
-			blockEnd = end - 1
-		}
-		go r.worker(blockStart, blockEnd, &wg, channel)
-	}
-	go func() {
-		wg.Wait()
-		close(channel)
-	}()
-	matches := make([]match, 0)
-	log.Debug().Msg("reading from channel")
-	for match := range channel {
-		matches = append(matches, match)
-	}
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].offset < matches[j].offset
-	})
+	matches := r.findQueries(r.offset, end)
 	log.Debug().Int("matches", len(matches)).Msg("calling listeners")
 	for _, entry := range matches {
 		for _, listener := range r.listeners[entry.listenerIndex] {

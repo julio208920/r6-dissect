@@ -24,13 +24,14 @@ From the repo root, in PowerShell:
 powershell -ExecutionPolicy Bypass -File desktop\build.ps1
 ```
 
-This needs Python 3.10+ (it uses `.venv` if there is one), Go 1.23+ (or an
+This needs Python 3.12+ (it uses `.venv` if there is one), Go 1.23+ (or an
 already built `r6-dissect.exe` at the repo root) and Inno Setup 6, which the
 script installs with winget if it's missing. It produces:
 
 - `dist\R6MatchStats\R6MatchStats.exe` (run it to try the build)
 - `dist\R6MatchStats-Setup.exe` (the installer)
 - `dist\R6MatchStats-Windows.zip` (the portable version)
+- `dist\SHA256SUMS.txt` (the SHA-256 of both, for people to check their download)
 
 GitHub builds both for every published release with the **Windows app**
 workflow (`.github/workflows/windows-app.yaml`), which also installs the app,
@@ -48,10 +49,17 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
 - `R6MatchStats.spec` tells PyInstaller what to bundle: a windowed exe (no
   console) with the icon and version details. The app files ship as plain
   files, because Streamlit runs `app.py` and its pages from disk.
-- `installer.iss` is the Inno Setup script for the installer.
+- `integrity.py` (`AppIntegrity`) lists every file of the build with its
+  SHA-256 (`_internal\manifest.json`). The launcher checks the app's folder
+  against that list every time it opens, and if a file was changed, added or
+  removed, it refuses to start and says which. `test_integrity.py` tests it.
+- `installer.iss` is the Inno Setup script for the installer. Before
+  installing, it shows the notice that the app is unofficial and what it does
+  and doesn't do.
 - `build.ps1` builds `r6-dissect.exe`, runs PyInstaller, zips the result and
   builds the installer. It also stamps `build\repo.txt` (the GitHub repo the
-  app checks for updates) and `build\version.txt`.
+  app checks for updates), `build\version.txt` and `build\notice.txt`, writes
+  the file list for the integrity check, and writes `dist\SHA256SUMS.txt`.
 - `assets\app.ico` is the icon (with `scripts\icon.png`, the page's favicon),
   drawn by `make_icon.py`.
 
