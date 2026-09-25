@@ -149,6 +149,8 @@ def _run_r6_dissect(rec_path: Path, num_rounds: int = 1) -> dict[str, Any]:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
             )
+        except OSError as exc:
+            raise ReplayParseError(f"Could not start r6-dissect: {exc}") from exc
         except subprocess.TimeoutExpired:
             raise ReplayParseError(f"r6-dissect timed out after {timeout}s on {rec_path.name}.")
         if proc.returncode != 0:
@@ -156,7 +158,13 @@ def _run_r6_dissect(rec_path: Path, num_rounds: int = 1) -> dict[str, Any]:
             raise ReplayParseError(f"r6-dissect failed on {label}: {_ANSI.sub('', proc.stderr).strip()}")
         if not out_path.exists():
             raise ReplayParseError("r6-dissect produced no output file.")
-        return json.loads(out_path.read_text(encoding="utf-8"))
+        try:
+            result = json.loads(out_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ReplayParseError("r6-dissect returned unreadable or invalid JSON.") from exc
+        if not isinstance(result, dict):
+            raise ReplayParseError("r6-dissect returned an invalid match object.")
+        return result
 
 
 def _extract_name(field: Any, default: str = "") -> str:
@@ -246,6 +254,15 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
     else:
         round_sources = [raw]
 
+    ids = {r.get("matchID") for r in round_sources if r.get("matchID")}
+    if len(ids) > 1:
+        raise ReplayParseError("These replays contain different matches. Import each match separately.")
+    numbers = [r.get("roundNumber") for r in round_sources]
+    if len([n for n in numbers if n is not None]) != len(set(n for n in numbers if n is not None)):
+        raise ReplayParseError("Duplicate round numbers found. Import one replay per round.")
+    if all(isinstance(n, int) for n in numbers):
+        round_sources = sorted(round_sources, key=lambda r: r["roundNumber"])
+
     team_of: dict[str, int] = {}
     team_names = ["Team A", "Team B"]
     for rs in round_sources:
@@ -256,7 +273,10 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
         for p in rs.get("players") or []:
             uname = p.get("username")
             if uname and uname not in team_of:
-                team_of[uname] = p.get("teamIndex", 0)
+                team = p.get("teamIndex", 0)
+                if team not in (0, 1):
+                    raise ReplayParseError(f"Invalid team index for {uname}.")
+                team_of[uname] = team
 
     players = [{"name": n, "team": t, "operator_history": []} for n, t in team_of.items()]
     rounds = [_normalize_round(rs, idx) for idx, rs in enumerate(round_sources)]
@@ -374,11 +394,19 @@ def extract_zip_recs(zf: zipfile.ZipFile, dest_dir: Path, scanner: ReplayScanner
     with _batch_checks():
         scanner.check_batch(len(members), sum(m.file_size for m in members))
     paths = []
+    destinations: set[Path] = set()
     for member in members:
+        src = PurePosixPath(member.filename.replace("\\", "/"))
+        if (src.is_absolute() or any(part in ("..", ".") for part in src.parts)
+                or ":" in src.parts[0]):
+            raise ReplayParseError(f"Unsafe path in zip: {member.filename}")
         if not scanner.check(member.filename, member.file_size, lambda m=member: zf.open(m)):
             continue
         src = PurePosixPath(member.filename.replace("\\", "/"))
         dest = dest_dir / (src.parent.name or "match") / src.name
+        if dest in destinations:
+            raise ReplayParseError(f"Duplicate replay filename in zip: {member.filename}")
+        destinations.add(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
         with zf.open(member) as fsrc, open(dest, "wb") as out:
             shutil.copyfileobj(fsrc, out)

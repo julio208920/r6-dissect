@@ -28,15 +28,22 @@ counted or not counted at all.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "season_stats.db"
+def default_db_path() -> Path:
+    """Keep user data outside the installed application, across upgrades."""
+    base = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return base / "R6MatchStats" / "season_stats.db"
+
+
+DEFAULT_DB_PATH = default_db_path()
 DEFAULT_SEASON = "current"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 CLUTCH_SIZES = range(1, 6)
 
 # r6-dissect names teams relative to the replay's recorder ("YOUR TEAM" /
@@ -48,7 +55,7 @@ GENERIC_TEAM_NAMES = frozenset({"YOUR TEAM", "ENEMY TEAM", "TEAM A", "TEAM B", "
 COUNTER_FIELDS: tuple[str, ...] = (
     "rounds_played",
     "kills", "deaths", "assists", "headshots",
-    "entry_kills", "entry_deaths", "trades",
+    "entry_kills", "entry_deaths", "trades", "trade_kills", "multikill_rounds",
     "plants", "defuses",
     # KOST: kost_rounds counts rounds with ANY of K/O/S/T; the four below count
     # each ingredient separately, so one round can add to several of them.
@@ -131,6 +138,7 @@ class RoundResult:
     entry_kill: bool = False
     entry_death: bool = False
     traded: bool = False
+    trade_kills: int = 0
     planted: bool = False
     defused: bool = False
     survived: bool = True
@@ -147,6 +155,7 @@ class RoundResult:
             entry_kill=rb.entry_kill, entry_death=rb.entry_death, traded=rb.traded,
             planted=rb.planted, defused=rb.defused, survived=rb.survived,
             clutch_won=won, clutch_attempt=attempt,
+            trade_kills=getattr(rb, "trade_kills", 0),
         )
 
     @property
@@ -165,6 +174,7 @@ class RoundResult:
             "headshots": self.headshots,
             "entry_kills": int(self.entry_kill), "entry_deaths": int(self.entry_death),
             "trades": int(self.traded),
+            "trade_kills": self.trade_kills, "multikill_rounds": int(self.kills >= 2),
             "plants": int(self.planted), "defuses": int(self.defused),
             "kost_rounds": int(self.kost),
             "kost_kill": int(self.kills > 0), "kost_objective": int(self.objective),
@@ -257,8 +267,23 @@ class StatsManager:
         self._conn.row_factory = sqlite3.Row
         with self._conn:
             self._conn.executescript(_SCHEMA)
+            existing = {r[1] for r in self._conn.execute("PRAGMA table_info(player_totals)")}
+            migrated = False
+            for column in ("trade_kills", "multikill_rounds"):
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE player_totals ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+                    migrated = True
+            if migrated:
+                # Version 1 audit records have kills, so multikills can be recovered.
+                # Missing historical trade-kill counts cannot be inferred from kills alone.
+                for row in self._conn.execute("SELECT season, username, result FROM logged_rounds").fetchall():
+                    result = json.loads(row['result'])
+                    self._conn.execute(
+                        "UPDATE player_totals SET multikill_rounds=multikill_rounds+?, trade_kills=trade_kills+? WHERE season=? AND username=?",
+                        (int(result.get('kills', 0) >= 2), result.get('trade_kills', 0), row['season'], row['username']),
+                    )
             self._conn.execute(
-                "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema_version', ?)",
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
 
@@ -462,6 +487,14 @@ class StatsManager:
             (self.season,),
         )
         return [r["team"] for r in rows]
+
+    def match_history(self) -> list[dict]:
+        return [dict(row) for row in self._conn.execute(
+            """SELECT match_id AS Match, COUNT(DISTINCT round_num) AS Rounds,
+                      COUNT(DISTINCT username) AS Players, MAX(logged_at) AS Saved
+               FROM logged_rounds WHERE season = ? GROUP BY match_id ORDER BY Saved DESC""",
+            (self.season,),
+        )]
 
     def get_team_stats(self, team: str) -> TeamSeasonStats | None:
         members = [p for p in self.all_player_stats() if p.team and p.team.casefold() == team.casefold()]

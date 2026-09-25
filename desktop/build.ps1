@@ -35,6 +35,11 @@ Set-Content -Path build\version.txt -Value $version -Encoding ascii
 & $python -c "import sys; sys.path.insert(0, 'scripts'); import app_info; print(app_info.NOTICE + '\n\n' + app_info.HOW_IT_WORKS)" |
     Set-Content -Path build\notice.txt -Encoding utf8
 
+# Hash the exact plain files included in the install. The launcher refuses to
+# execute if a shipped script or replay parser differs from this manifest.
+& $python desktop\integrity.py (Get-Location).Path build\integrity.json
+if ($LASTEXITCODE) { throw "integrity manifest generation failed" }
+
 & $python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller desktop\R6MatchStats.spec
 if ($LASTEXITCODE) { throw "PyInstaller failed" }
 

@@ -36,6 +36,12 @@ script installs with winget if it's missing. It produces:
 GitHub builds both for every published release with the **Windows app**
 workflow (`.github/workflows/windows-app.yaml`), which also installs the app,
 opens its window, checks that the dashboard shows up in it, and uninstalls it.
+Before that it virus-scans the installer, the zip and every file of the app
+with Microsoft Defender (updated signatures) and stops if anything is found;
+the results and the files' SHA-256 checksums are attached to the release as
+`VirusScan.txt` and added to its notes. Add a `VT_API_KEY` repository secret
+(a free VirusTotal API key) to also scan them with VirusTotal's 70+ engines
+and link to the public reports.
 Set `R6_VERSION` (the workflow passes the release tag) to set the app's
 version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
 
@@ -64,6 +70,23 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
   drawn by `make_icon.py`.
 
 The app writes its log to `%LOCALAPPDATA%\R6MatchStats\app.log`.
+
+**Team Hub** saves a roster of Siege usernames and their team in
+`%LOCALAPPDATA%\R6MatchStats\season_stats.db`, which updates don't overwrite.
+Open a replay in Match report to select its players, or enter usernames
+manually, then choose **Save match stats** to add the loaded match to the
+season. Per-player round keys prevent the same replay from increasing season
+totals twice. Match report's **Watch replay folder** checks for new rounds
+every 15 seconds while that page is open; the app does not monitor matches
+while it is closed. Imports with parser warnings must be confirmed before they
+are saved.
+
+The build creates a SHA-256 manifest for its shipped scripts and replay parser;
+the packaged launcher checks them before starting. The Windows build also
+requires an enabled Microsoft Defender engine to scan the build artifacts and
+stops if it reports a detection. These measures do not authenticate a modified
+manifest or replace a signed release. A Windows runner with Defender enabled
+is required for the release build.
 
 For testing, set `R6_NO_WINDOW=1` to open the app in the default browser
 instead of a window, or `R6_SMOKE_TEST=result.json` to load the app, record

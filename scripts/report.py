@@ -140,7 +140,14 @@ with st.sidebar:
     st.caption(f"{APP_NAME} {APP_VERSION}")
     st.caption(NOTICE)
 
+st.caption("RAINBOW SIX SIEGE  /  COMPETITIVE ANALYTICS")
 st.title("Match Report")
+st.caption("Review every round. Build your roster. Track your season.")
+if st.button("Refresh replays", help="Check the replay folder again and retry files that were still being written."):
+    old_source = st.session_state.pop("source", None)
+    if old_source:
+        shutil.rmtree(old_source["workdir"], ignore_errors=True)
+st.session_state.pop("active_match", None)
 
 # ------------------------------------------------------------- input -------
 match = raw = None
@@ -234,6 +241,9 @@ if match is None:
     st.stop()
 
 # ------------------------------------------------------------ compute ------
+st.session_state["active_match"] = match
+st.session_state["active_match_demo"] = demo_mode
+st.session_state["active_match_warnings"] = parse_warnings
 stats = compute_match_metrics(match)
 rows = pro_league_rows(stats)
 team_names = match["team_names"]
@@ -275,6 +285,8 @@ c2.download_button("⬇ JSON", json.dumps({
 c3.download_button("⬇ TXT", (scoreboard_text(match, rows) + "\n").encode("utf-8"),
                    file_name=f"{match['match_id']}_stats.txt", mime="text/plain")
 
+st.page_link("team_hub.py", label="Save players and match stats to Team Hub", icon=":material/groups:")
+
 # ------------------------------------------------------------ breakdown ---
 st.subheader("Round-by-round")
 player = st.selectbox("Player", [r["Player"] for r in rows])
@@ -289,7 +301,8 @@ for col, (label, value) in zip(st.columns(3) + st.columns(3), (
 )):
     col.metric(label, value)
 for i, rb in enumerate(s.round_breakdown, 1):
-    st.markdown(f"**{'🟢' if rb.survived else '🔴'} Round {i}** — {rb.summary()}")
+    display_round = rb.round_num + (1 if any(r['round_num'] == 0 for r in match['rounds']) else 0)
+    st.markdown(f"**{'🟢' if rb.survived else '🔴'} Round {display_round}** — {rb.summary()}")
 
 with st.expander("Stat definitions"):
     st.markdown(

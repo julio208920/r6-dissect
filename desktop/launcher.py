@@ -306,6 +306,16 @@ def already_running() -> bool:
 
 
 def main() -> int:
+    if getattr(sys, "frozen", False):
+        changed = verify_manifest(ROOT, ROOT / "integrity.json")
+        if changed:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with LOG_FILE.open("a", encoding="utf-8") as log:
+                log.write("Integrity check failed: " + ", ".join(changed) + "\n")
+            if "--serve" not in sys.argv:
+                message_box("The app files have changed or are incomplete. Reinstall R6 Match Stats "
+                            "from the official release before loading match data.")
+            return 1
     if len(sys.argv) >= 4 and sys.argv[1] == "--serve":
         return serve(int(sys.argv[2]), int(sys.argv[3]))
     if not os.environ.get("R6_SMOKE_TEST") and already_running():

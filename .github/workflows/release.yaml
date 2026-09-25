@@ -4,6 +4,13 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload to (e.g. v1.2)"
+        required: true
+
+permissions:
+  contents: write
 
 jobs:
   releases-matrix:
@@ -14,6 +21,8 @@ jobs:
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - shell: bash
         name: Set env variables
         run: |
@@ -25,6 +34,7 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           goversion: "1.23.3"
+          release_tag: ${{ inputs.tag || github.event.release.tag_name }}
           pre_command: "go build -o libr6dissect.${{ env.ext }} -buildmode=c-shared exports/exports.go"
           extra_files: "LICENSE README.md libr6dissect.h libr6dissect.${{ env.ext }}"
           ldflags: "-X 'main.Version=${{ env.version }}'"

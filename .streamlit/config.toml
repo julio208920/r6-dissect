@@ -16,3 +16,7 @@ gatherUsageStats = false
 [theme]
 # the app's own styling is dark; a light theme would draw dark text on it
 base = "dark"
+primaryColor = "#54d6e8"
+backgroundColor = "#0d1117"
+secondaryBackgroundColor = "#151e2b"
+textColor = "#f0f3f6"

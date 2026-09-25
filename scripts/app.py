@@ -39,7 +39,7 @@ st.set_page_config(page_title=APP_NAME, page_icon=str(Path(__file__).with_name("
 # ---------------------------------------------------------------- styling --
 st.markdown("""
 <style>
-:root { --bg:#0d1117; --panel:#151b23; --row:#1a212b; --border:#232b36; --accent:#ff5c1a;
+:root { --bg:#0d1117; --panel:#151b23; --row:#1a212b; --border:#232b36; --accent:#54d6e8;
         --dim:#8b949e; --text:#f0f3f6; --pos:#3fb950; --neg:#f85149; }
 .stApp { background-color: var(--bg); }
 section[data-testid="stSidebar"] { background-color: var(--panel); }
@@ -64,10 +64,24 @@ table.pl tr:nth-child(even) td { background:var(--row); }
 table.pl th:first-child, table.pl td:first-child { text-align:left; font-weight:600; }
 table.pl td.eps { color:var(--accent); font-weight:800; }
 .pos { color:var(--pos); } .neg { color:var(--neg); }
+.block-container { max-width:1400px; padding-top:2.5rem; }
+[data-testid="stMetric"] { background:#151e2b; border:1px solid #29374a; border-radius:10px; padding:16px; }
+[data-testid="stMetricLabel"] { color:#a6b8cb; text-transform:uppercase; font-size:.75rem; letter-spacing:.08em; }
+.scorecard { border-top:3px solid #54d6e8; background:linear-gradient(120deg,#152537,#111923); }
+table.pl th { font-size:.75rem; letter-spacing:.025em; }
+table.pl tbody tr:hover td { background:#203247; }
+.stButton > button { border-radius:7px; }
+@media(max-width:700px) { .block-container { padding:1.2rem; } .score-big { font-size:2rem; } }
 </style>
 """, unsafe_allow_html=True)
 
+with st.sidebar:
+    st.markdown("### R6 / MATCH STATS")
+    st.caption("COLLEGIATE COMPETITION")
+    st.caption("Built for Siege teams competing in NECC. Independent community tool.")
+
 st.navigation([
     st.Page("report.py", title="Match report", icon="🎯", default=True),
+    st.Page("team_hub.py", title="Team Hub", icon=":material/groups:"),
     st.Page("download.py", title="Get the Windows app", icon="💾"),
 ]).run()

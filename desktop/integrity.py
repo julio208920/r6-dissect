@@ -1,6 +1,5 @@
 """
 integrity.py
-============
 AppIntegrity checks the Windows app's folder against the list of files it was
 built with (_internal/manifest.json, which build.ps1 writes right after
 PyInstaller). Every listed file must be there and unchanged (same SHA-256),
