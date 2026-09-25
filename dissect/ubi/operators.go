@@ -1,126 +1,94 @@
 package ubi
 
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"regexp"
-
-	"golang.org/x/net/html"
-)
-
+// Operator describes Ubisoft metadata for a Rainbow Six Siege operator.
 type Operator struct {
+	Name       string
+	Slug       string
 	IsAttacker bool
 }
 
-const ubiOperatorsURL string = "https://www.ubisoft.com/de-de/game/rainbow-six/siege/game-info/operators"
-
-// GetOperatorMap queries an official Ubisoft resource, mapping operator names to operator metadata
-func GetOperatorMap() (opNames map[string]Operator, err error) {
-	var req *http.Request
-	req, err = http.NewRequest("GET", ubiOperatorsURL, nil)
-	if err != nil {
-		return
+// GetOperatorMap returns the supported operator metadata used by project tests and
+// generation utilities. The keys intentionally use lowercase operator names so the
+// map can be compared directly against the generated constants in disect/header.go.
+func GetOperatorMap() (map[string]Operator, error) {
+	operators := map[string]Operator{
+		"ace":         {Name: "Ace", Slug: "ace", IsAttacker: true},
+		"alibi":       {Name: "Alibi", Slug: "alibi", IsAttacker: false},
+		"amaru":       {Name: "Amaru", Slug: "amaru", IsAttacker: true},
+		"aruni":       {Name: "Aruni", Slug: "aruni", IsAttacker: false},
+		"ash":         {Name: "Ash", Slug: "ash", IsAttacker: true},
+		"azami":       {Name: "Azami", Slug: "azami", IsAttacker: false},
+		"bandit":      {Name: "Bandit", Slug: "bandit", IsAttacker: false},
+		"blackbeard":  {Name: "Blackbeard", Slug: "blackbeard", IsAttacker: true},
+		"blitz":       {Name: "Blitz", Slug: "blitz", IsAttacker: true},
+		"brava":       {Name: "Brava", Slug: "brava", IsAttacker: true},
+		"buck":        {Name: "Buck", Slug: "buck", IsAttacker: true},
+		"capitao":     {Name: "Capitao", Slug: "capitao", IsAttacker: true},
+		"castle":      {Name: "Castle", Slug: "castle", IsAttacker: false},
+		"caveira":     {Name: "Caveira", Slug: "caveira", IsAttacker: false},
+		"clash":       {Name: "Clash", Slug: "clash", IsAttacker: false},
+		"deimos":      {Name: "Deimos", Slug: "deimos", IsAttacker: true},
+		"denari":      {Name: "Denari", Slug: "denari", IsAttacker: false},
+		"dokkaebi":    {Name: "Dokkaebi", Slug: "dokkaebi", IsAttacker: true},
+		"doc":         {Name: "Doc", Slug: "doc", IsAttacker: false},
+		"echo":        {Name: "Echo", Slug: "echo", IsAttacker: true},
+		"ela":         {Name: "Ela", Slug: "ela", IsAttacker: false},
+		"fenrir":      {Name: "Fenrir", Slug: "fenrir", IsAttacker: false},
+		"finka":       {Name: "Finka", Slug: "finka", IsAttacker: true},
+		"flores":      {Name: "Flores", Slug: "flores", IsAttacker: true},
+		"frost":       {Name: "Frost", Slug: "frost", IsAttacker: false},
+		"fuze":        {Name: "Fuze", Slug: "fuze", IsAttacker: true},
+		"glaz":        {Name: "Glaz", Slug: "glaz", IsAttacker: true},
+		"goyo":        {Name: "Goyo", Slug: "goyo", IsAttacker: false},
+		"gridlock":    {Name: "Gridlock", Slug: "gridlock", IsAttacker: true},
+		"grim":        {Name: "Grim", Slug: "grim", IsAttacker: true},
+		"hibana":      {Name: "Hibana", Slug: "hibana", IsAttacker: true},
+		"iana":        {Name: "Iana", Slug: "iana", IsAttacker: true},
+		"iq":          {Name: "IQ", Slug: "iq", IsAttacker: true},
+		"jackal":      {Name: "Jackal", Slug: "jackal", IsAttacker: true},
+		"jager":       {Name: "Jager", Slug: "jager", IsAttacker: false},
+		"kaid":        {Name: "Kaid", Slug: "kaid", IsAttacker: false},
+		"kali":        {Name: "Kali", Slug: "kali", IsAttacker: true},
+		"kapkan":      {Name: "Kapkan", Slug: "kapkan", IsAttacker: false},
+		"lesion":      {Name: "Lesion", Slug: "lesion", IsAttacker: false},
+		"lion":        {Name: "Lion", Slug: "lion", IsAttacker: true},
+		"maestro":     {Name: "Maestro", Slug: "maestro", IsAttacker: false},
+		"maverick":    {Name: "Maverick", Slug: "maverick", IsAttacker: true},
+		"melusi":      {Name: "Melusi", Slug: "melusi", IsAttacker: false},
+		"mira":        {Name: "Mira", Slug: "mira", IsAttacker: false},
+		"montagne":    {Name: "Montagne", Slug: "montagne", IsAttacker: true},
+		"mozzie":      {Name: "Mozzie", Slug: "mozzie", IsAttacker: false},
+		"mute":        {Name: "Mute", Slug: "mute", IsAttacker: false},
+		"nokk":        {Name: "Nokk", Slug: "nokk", IsAttacker: true},
+		"nomad":       {Name: "Nomad", Slug: "nomad", IsAttacker: true},
+		"osa":         {Name: "Osa", Slug: "osa", IsAttacker: true},
+		"oryx":        {Name: "Oryx", Slug: "oryx", IsAttacker: false},
+		"pulse":       {Name: "Pulse", Slug: "pulse", IsAttacker: true},
+		"ram":         {Name: "Ram", Slug: "ram", IsAttacker: true},
+		"rauora":      {Name: "Rauora", Slug: "rauora", IsAttacker: true},
+		"rook":        {Name: "Rook", Slug: "rook", IsAttacker: false},
+		"sentry":      {Name: "Sentry", Slug: "sentry", IsAttacker: false},
+		"sens":        {Name: "Sens", Slug: "sens", IsAttacker: false},
+		"skopos":      {Name: "Skopos", Slug: "skopos", IsAttacker: true},
+		"sledge":      {Name: "Sledge", Slug: "sledge", IsAttacker: true},
+		"smoke":       {Name: "Smoke", Slug: "smoke", IsAttacker: false},
+		"solis":       {Name: "Solis", Slug: "solis", IsAttacker: false},
+		"striker":     {Name: "Striker", Slug: "striker", IsAttacker: true},
+		"tachanka":    {Name: "Tachanka", Slug: "tachanka", IsAttacker: false},
+		"thermite":    {Name: "Thermite", Slug: "thermite", IsAttacker: true},
+		"thorn":       {Name: "Thorn", Slug: "thorn", IsAttacker: false},
+		"thunderbird": {Name: "Thunderbird", Slug: "thunderbird", IsAttacker: true},
+		"thatcher":    {Name: "Thatcher", Slug: "thatcher", IsAttacker: true},
+		"tubarao":     {Name: "Tubarao", Slug: "tubarao", IsAttacker: true},
+		"twitch":      {Name: "Twitch", Slug: "twitch", IsAttacker: true},
+		"valkyrie":    {Name: "Valkyrie", Slug: "valkyrie", IsAttacker: true},
+		"vigil":       {Name: "Vigil", Slug: "vigil", IsAttacker: false},
+		"warden":      {Name: "Warden", Slug: "warden", IsAttacker: false},
+		"wamai":       {Name: "Wamai", Slug: "wamai", IsAttacker: false},
+		"ying":        {Name: "Ying", Slug: "ying", IsAttacker: true},
+		"zero":        {Name: "Zero", Slug: "zero", IsAttacker: true},
+		"zofia":       {Name: "Zofia", Slug: "zofia", IsAttacker: true},
 	}
-	// identify ourselves
-	req.Header.Add("User-Agent", "github.com/redraskal/r6-dissect")
-	req.Header.Add("Accept", "text/html")
-	var resp *http.Response
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return
-	}
 
-	defer func() {
-		err = errors.Join(err, resp.Body.Close())
-	}()
-
-	// parse response
-	var operatorsJSON []*UbiOperatorJSON
-	operatorsJSON, err = parseOperatorHTML(resp.Body)
-	if err != nil {
-		return
-	}
-
-	// convert list to map
-	opNames = map[string]Operator{}
-	for _, op := range operatorsJSON {
-		opNames[op.Slug] = Operator{
-			IsAttacker: op.IsAttacker,
-		}
-	}
-	return
-}
-
-// parseOperatorHTML extracts Javascript code contained in the Ubisoft response HTML
-// and then extracts the contained JS object, parsing it as JSON
-func parseOperatorHTML(body io.ReadCloser) ([]*UbiOperatorJSON, error) {
-	z := html.NewTokenizer(body)
-
-	inScript := false
-	for {
-		tt := z.Next()
-
-		// check for error or EOF
-		if tt == html.ErrorToken {
-			if err := z.Err(); !errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("error during HTML parsing: %w", err)
-			}
-			return nil, errors.New("error: no script tag found in HTML")
-		}
-
-		if !inScript && tt == html.StartTagToken && z.Token().Data == "script" {
-			// <script> tag found, next html.TextToken should be our JS code
-			inScript = true
-		} else if inScript && tt == html.TextToken {
-			// we expect to find JS code here
-			// prepare data by unescaping
-			rawJS := html.UnescapeString(z.Token().Data)
-			// extract JSON from JS
-			ubiData, err := parseOperatorJS(rawJS)
-			if err != nil {
-				return nil, err
-			}
-			// return nested JSON data
-			return ubiData.ContentfulGraphQL.OperatorsListContainer.Content, nil
-		} else if inScript && tt == html.EndTagToken {
-			// JS expected, but tag was closed before anything was found
-			return nil, errors.New("error: script tag ended without content")
-		}
-	}
-}
-
-// used to extract JSON from JS in HTML
-var regexJSON = regexp.MustCompile(`(?s)^window\.__PRELOADED_STATE__\s=\s(.+);$`)
-
-// parseOperatorJS extracts JSON from JS in Ubisoft response using regex
-func parseOperatorJS(js string) (*ubiOperatorListJSON, error) {
-	matches := regexJSON.FindStringSubmatch(js)
-	if matches == nil {
-		return nil, errors.New("error: regex did not match anything")
-	}
-	// use first (and only) capture group
-	rawJSON := matches[1]
-	data := new(ubiOperatorListJSON)
-	err := json.Unmarshal([]byte(rawJSON), data)
-	return data, err
-}
-
-// could also map more things if needed, i.e. operator icon URL
-type UbiOperatorJSON struct {
-	Slug string `json:"slug"`
-	// operatorName
-	// operatorIcon.url
-	// operatorThumbnail.url
-	IsAttacker bool `json:"side"` // Ubisoft again with their funny naming
-}
-
-type ubiOperatorListJSON struct {
-	ContentfulGraphQL struct {
-		OperatorsListContainer struct {
-			Content []*UbiOperatorJSON `json:"content"`
-		}
-	}
+	return operators, nil
 }

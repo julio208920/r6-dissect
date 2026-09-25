@@ -1,0 +1,98 @@
+name: Windows app
+
+# Builds the Windows app with desktop/build.ps1, tests the installer on a real
+# Windows machine (install, open the app window, uninstall), and attaches
+# R6MatchStats-Setup.exe and R6MatchStats-Windows.zip to each published release.
+# The website's download button points at the newest release that has them.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - "scripts/*.py"
+      - "scripts/requirements.txt"
+      - ".github/workflows/windows-app.yaml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        shell: pwsh
+        env:
+          R6_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+        run: ./desktop/build.ps1
+
+      - name: Install
+        shell: pwsh
+        run: |
+          $setup = Start-Process dist\R6MatchStats-Setup.exe -PassThru -Wait `
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=desktopicon', '/LOG=install.log'
+          if ($setup.ExitCode) { Get-Content install.log; throw "installer exited with $($setup.ExitCode)" }
+          $app = "$env:LOCALAPPDATA\Programs\R6 Match Stats\R6MatchStats.exe"
+          $startMenu = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\R6 Match Stats.lnk"
+          $desktop = "$([Environment]::GetFolderPath('Desktop'))\R6 Match Stats.lnk"
+          foreach ($path in $app, $startMenu, $desktop) {
+            if (-not (Test-Path $path)) { throw "missing after install: $path" }
+          }
+          $info = (Get-Item $app).VersionInfo
+          "Installed $($info.ProductName) $($info.ProductVersion) to $app"
+
+      - name: Open the app window
+        shell: pwsh
+        run: |
+          $env:R6_SMOKE_TEST = "$PWD\smoke.json"
+          $app = Start-Process "$env:LOCALAPPDATA\Programs\R6 Match Stats\R6MatchStats.exe" -PassThru
+          if (-not $app.WaitForExit(180000)) { $app.Kill($true); throw "the app didn't finish loading in 3 minutes" }
+          if (Test-Path smoke.json) { Get-Content smoke.json }
+          if ($app.ExitCode) {
+            Get-Content "$env:LOCALAPPDATA\R6MatchStats\app.log" -ErrorAction SilentlyContinue
+            throw "the app window didn't show the app (exit code $($app.ExitCode))"
+          }
+          Start-Sleep -Seconds 3
+          $left = Get-Process R6MatchStats -ErrorAction SilentlyContinue
+          if ($left) { throw "the app's server kept running after its window closed" }
+
+      - name: Uninstall
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\R6 Match Stats"
+          $un = Start-Process "$dir\unins000.exe" -PassThru -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          if ($un.ExitCode) { throw "uninstaller exited with $($un.ExitCode)" }
+          Start-Sleep -Seconds 3  # the uninstaller removes its own files from a helper process
+          if (Test-Path "$dir\R6MatchStats.exe") { throw "the app is still there after uninstalling" }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\R6 Match Stats.lnk") { throw "Start menu shortcut left behind" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: R6MatchStats-Windows
+          path: |
+            dist/R6MatchStats-Setup.exe
+            dist/R6MatchStats-Windows.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test
+          path: |
+            smoke.json
+            smoke.json.png
+            install.log
+          if-no-files-found: ignore
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/R6MatchStats-Setup.exe dist/R6MatchStats-Windows.zip --clobber

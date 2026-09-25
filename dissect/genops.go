@@ -90,7 +90,7 @@ type Generator struct {
 // to find the types and values we need for generating our output
 func (g *Generator) parseSrcFile(file string) {
 	cfg := &packages.Config{
-		Mode:  packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo,
+		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedTypesInfo,
 		Tests: false,
 	}
 	pkgs, err := packages.Load(cfg, "file="+file)
@@ -228,10 +228,16 @@ func (g *Generator) printHeader() {
 }
 
 func (g *Generator) printGetter() {
+	// LookupRole is for parsing replays, which may contain operators newer than this build
+	g.printf("// LookupRole returns the operator's role and whether it is known.\n")
+	g.printf("func (i Operator) LookupRole() (%s, bool) {\n", g.roleTypeName)
+	g.printf("r, ok := _operatorRoles[i]\n")
+	g.printf("return r, ok\n")
+	g.printf("}\n\n")
 	// since we have a test validating that every operator has a role,
 	// this method does not need to return an error and instead just panics if the role is not found
 	g.printf("func (i Operator) Role() %s {\n", g.roleTypeName)
-	g.printf("if r, ok := _operatorRoles[i]; ok {\n")
+	g.printf("if r, ok := i.LookupRole(); ok {\n")
 	g.printf("return r\n")
 	g.printf("}\n")
 	g.printf(`panic(fmt.Sprintf("role unknown for operator ID %%d", i))`)

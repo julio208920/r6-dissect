@@ -76,7 +76,7 @@ const (
 )
 
 func loadPackage() (*packages.Package, error) {
-	cfg := &packages.Config{Mode: packages.NeedTypes | packages.NeedTypesInfo}
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedTypesInfo}
 	pkgs, err := packages.Load(cfg, "pattern="+packageName)
 	if err != nil {
 		return nil, err

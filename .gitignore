@@ -29,3 +29,17 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# Match replays loaded by scripts/app.py
+/replays/
+/.streamlit/app.log
+# Season stats database (scripts/season_stats.py)
+/data/
+# Python
+__pycache__/
+*.pyc
+/.venv/
+
+# Windows app build (desktop/build.ps1)
+/build/
+/dist/

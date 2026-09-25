@@ -82,8 +82,14 @@ var _operatorRoles = map[Operator]TeamRole{
 	92270644345:  Attack,
 }
 
+// LookupRole returns the operator's role and whether it is known.
+func (i Operator) LookupRole() (TeamRole, bool) {
+	r, ok := _operatorRoles[i]
+	return r, ok
+}
+
 func (i Operator) Role() TeamRole {
-	if r, ok := _operatorRoles[i]; ok {
+	if r, ok := i.LookupRole(); ok {
 		return r
 	}
 	panic(fmt.Sprintf("role unknown for operator ID %d", i))

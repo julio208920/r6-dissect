@@ -27,15 +27,14 @@ const (
 )
 
 type MatchUpdate struct {
-	Type                   MatchUpdateType `json:"type"`
-	Username               string          `json:"username,omitempty"`
-	Target                 string          `json:"target,omitempty"`
-	Headshot               *bool           `json:"headshot,omitempty"`
-	Time                   string          `json:"time"`
-	TimeInSeconds          float64         `json:"timeInSeconds"`
-	Message                string          `json:"message,omitempty"`
-	Operator               Operator        `json:"operator,omitempty"`
-	usernameFromScoreboard string
+	Type          MatchUpdateType `json:"type"`
+	Username      string          `json:"username,omitempty"`
+	Target        string          `json:"target,omitempty"`
+	Headshot      *bool           `json:"headshot,omitempty"`
+	Time          string          `json:"time"`
+	TimeInSeconds float64         `json:"timeInSeconds"`
+	Message       string          `json:"message,omitempty"`
+	Operator      Operator        `json:"operator,omitempty"`
 }
 
 func (i MatchUpdateType) MarshalJSON() (text []byte, err error) {
@@ -151,10 +150,6 @@ func readMatchFeedback(r *Reader) error {
 			if val.Type == Kill && val.Username == u.Username && val.Target == u.Target {
 				return nil
 			}
-		}
-		// removing the elimination username for now
-		if r.lastKillerFromScoreboard != username {
-			u.usernameFromScoreboard = r.lastKillerFromScoreboard
 		}
 		r.MatchFeedback = append(r.MatchFeedback, u)
 		log.Debug().Interface("match_update", u).Send()

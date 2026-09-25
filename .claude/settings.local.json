@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(python3 -m py_compile app.py metrics_engine.py parser.py sample_data.py)",
+      "Bash(python3 -m pyflakes .)",
+      "Bash(pip list *)",
+      "Bash(python3 -c \"import metrics_engine, sample_data; import parser as p\")",
+      "Bash(bash -n dump_filter_by_time.sh)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -W error::DeprecationWarning -c ' *)",
+      "Bash(grep -v '^\\\\s*$')"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  // Codespaces: forward the Streamlit app quietly and ignore every other port,
+  // instead of popping a notification / browser tab each time one opens
+  "remote.autoForwardPorts": true,
+  "remote.portsAttributes": {
+    "8501": { "label": "R6 Match Lab (Streamlit)", "onAutoForward": "silent" }
+  },
+  "remote.otherPortsAttributes": { "onAutoForward": "ignore" }
+}

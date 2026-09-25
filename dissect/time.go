@@ -46,7 +46,7 @@ func readY7Time(r *Reader) error {
 func (r *Reader) roundEnd() {
 	log.Debug().Msg("round_end")
 
-	planter := -1
+	planted := false
 	deaths := make(map[int]int)
 	sizes := make(map[int]int)
 	roles := make(map[int]TeamRole)
@@ -55,72 +55,104 @@ func (r *Reader) roundEnd() {
 		sizes[p.TeamIndex] += 1
 		roles[p.TeamIndex] = r.Header.Teams[p.TeamIndex].Role
 	}
-
-	if r.Header.CodeVersion >= Y9S4 {
-		team0Won := r.Header.Teams[0].StartingScore < r.Header.Teams[0].Score
-		r.Header.Teams[0].Won = team0Won
-		r.Header.Teams[1].Won = !team0Won
+	teamOf := func(username string) int {
+		if i := r.PlayerIndexByUsername(username); i > -1 {
+			return r.Header.Players[i].TeamIndex
+		}
+		return -1
+	}
+	teamWithRole := func(role TeamRole) int {
+		for i := range r.Header.Teams {
+			if r.Header.Teams[i].Role == role {
+				return i
+			}
+		}
+		return -1
 	}
 
+	// Y9S4+ headers tell us who won via StartingScore, so the feed is only used for the win condition.
+	// Neither score moving means the round was cut short (e.g. an abandoned match).
+	headerWinner := -1
+	if r.Header.CodeVersion >= Y9S4 {
+		for i := range r.Header.Teams {
+			if r.Header.Teams[i].StartingScore < r.Header.Teams[i].Score {
+				headerWinner = i
+			}
+			r.Header.Teams[i].Won = false
+		}
+	}
+
+	r.fixKillersFromScoreboard()
+
+	defenders := teamWithRole(Defense)
+	disabled := false
+	feedback := r.MatchFeedback[:0]
 	for _, u := range r.MatchFeedback {
 		switch u.Type {
 		case Kill:
-			i := r.Header.Players[r.PlayerIndexByUsername(u.Target)].TeamIndex
-			deaths[i] = deaths[i] + 1
-			// fix killer username
-			if len(u.usernameFromScoreboard) > 0 {
-				u.Username = u.usernameFromScoreboard
+			if i := teamOf(u.Target); i > -1 {
+				deaths[i]++
 			}
-			break
 		case Death:
-			i := r.Header.Players[r.PlayerIndexByUsername(u.Username)].TeamIndex
-			deaths[i] = deaths[i] + 1
-			break
+			if i := teamOf(u.Username); i > -1 {
+				deaths[i]++
+			}
 		case DefuserPlantComplete:
-			planter = r.PlayerIndexByUsername(u.Username)
-			break
+			planted = true
 		case DefuserDisableComplete:
-			i := r.Header.Players[r.PlayerIndexByUsername(u.Username)].TeamIndex
-			r.Header.Teams[i].Won = true
-			r.Header.Teams[i].WinCondition = DisabledDefuser
-			return
+			// the "0.00" timer that marks a disable can also appear when the bomb goes off,
+			// so drop it when the header says the defenders did not win the round.
+			if disabled || (headerWinner > -1 && headerWinner != defenders) {
+				log.Debug().Interface("match_update", u).Msg("dropping defuser disable, defenders did not win")
+				continue
+			}
+			disabled = true
 		}
+		feedback = append(feedback, u)
 	}
+	r.MatchFeedback = feedback
 
-	if planter > -1 {
-		r.Header.Teams[r.Header.Players[planter].TeamIndex].Won = true
-		r.Header.Teams[r.Header.Players[planter].TeamIndex].WinCondition = DefusedBomb
+	if r.Header.CodeVersion >= Y9S4 && headerWinner < 0 {
 		return
 	}
-
-	// skip for now until we have a more reliable way of determining the win condition
-	// Y9S4 at least tells us who won now in the header with StartingScore
-	if r.Header.CodeVersion >= Y9S4 {
+	winner, condition := r.winCondition(headerWinner, planted, disabled, deaths, sizes, roles)
+	if winner < 0 {
 		return
 	}
+	r.Header.Teams[winner].Won = true
+	r.Header.Teams[winner].WinCondition = condition
+}
 
+// winCondition returns the winning team index and how the round was won, or -1 if unknown.
+func (r *Reader) winCondition(headerWinner int, planted, disabled bool, deaths, sizes map[int]int, roles map[int]TeamRole) (int, WinCondition) {
+	attackers, defenders := 0, 1
+	if roles[0] == Defense {
+		attackers, defenders = 1, 0
+	}
+	// once planted, defenders can only win by disabling the defuser
+	if disabled || (planted && headerWinner == defenders) {
+		return defenders, DisabledDefuser
+	}
+	if headerWinner > -1 {
+		loser := headerWinner ^ 1
+		switch {
+		case sizes[loser] > 0 && deaths[loser] >= sizes[loser]:
+			return headerWinner, KilledOpponents
+		case headerWinner == attackers && planted:
+			return headerWinner, DefusedBomb
+		case headerWinner == defenders:
+			return headerWinner, Time
+		}
+		return headerWinner, ""
+	}
+	if planted {
+		return attackers, DefusedBomb
+	}
 	if deaths[0] == sizes[0] {
-		if planter > -1 && roles[0] == Attack { // ignore attackers killed post-plant
-			return
-		}
-		r.Header.Teams[1].Won = true
-		r.Header.Teams[1].WinCondition = KilledOpponents
-		return
+		return 1, KilledOpponents
 	}
 	if deaths[1] == sizes[1] {
-		if planter > -1 && roles[1] == Attack { // ignore attackers killed post-plant
-			return
-		}
-		r.Header.Teams[0].Won = true
-		r.Header.Teams[0].WinCondition = KilledOpponents
-		return
+		return 0, KilledOpponents
 	}
-
-	i := 0
-	if roles[1] == Defense {
-		i = 1
-	}
-
-	r.Header.Teams[i].Won = true
-	r.Header.Teams[i].WinCondition = Time
+	return defenders, Time
 }

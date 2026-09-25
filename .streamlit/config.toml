@@ -1,0 +1,18 @@
+# Read when running `streamlit run scripts/app.py` from the repo root.
+[server]
+# a full match is ~6-14 MB per round .rec, so a zipped 12+ round match can exceed the 200 MB default
+maxUploadSize = 1024
+# don't open a browser tab on every launch; open the forwarded 8501 link from the Ports tab instead
+headless = true
+# GitHub Codespaces' port-forwarding proxy rewrites the page origin, which trips
+# these checks (blank page / failed uploads). Streamlit's own Codespaces template
+# disables both; the forwarded port stays private to your GitHub account.
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# the app's own styling is dark; a light theme would draw dark text on it
+base = "dark"

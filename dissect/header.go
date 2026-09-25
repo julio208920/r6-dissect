@@ -55,6 +55,7 @@ type Player struct {
 	Spawn        string   `json:"spawn,omitempty"`
 	DissectID    []byte   `json:"-" deep:"-"` // dissect player id at end of packet (4 bytes)
 	uiID         uint64   `json:"-" deep:"-"`
+	controllerID []byte   `json:"-" deep:"-"` // entity id of the player's controller (Y11S3+)
 }
 
 type stringerIntMarshal struct {
@@ -80,48 +81,52 @@ const (
 	CustomGameLocal  MatchType = 3
 	CustomGameOnline MatchType = 4
 	Standard         MatchType = 8 // Y8S3~Y10S1
-	Unranked		 MatchType = 9 // Y10S2~
+	Unranked         MatchType = 9 // Y10S2~
 
 	Bomb           GameMode = 327933806
 	SecureArea     GameMode = 1983085217
 	Hostage        GameMode = 2838806006
 	QuickMatchBomb GameMode = 400168582901
 
-	ClubHouse           Map = 837214085
-	KafeDostoyevsky     Map = 1378191338
-	Kanal               Map = 1460220617
-	Yacht               Map = 1767965020
-	PresidentialPlane   Map = 2609218856
-	ConsulateY7         Map = 2609221242
-	BartlettU           Map = 2697268122
-	Coastline           Map = 42090092951
-	Tower               Map = 53627213396
-	Villa               Map = 88107330328
-	Fortress            Map = 126196841359
-	HerefordBase        Map = 127951053400
-	ThemePark           Map = 199824623654
-	Oregon              Map = 231702797556
-	House               Map = 237873412352
-	Chalet              Map = 259816839773
-	Skyscraper          Map = 276279025182
-	Border              Map = 305979357167
-	Favela              Map = 329867321446
-	Bank                Map = 355496559878
-	Outback             Map = 362605108559
-	EmeraldPlains       Map = 365284490964
-	StadiumBravo        Map = 270063334510
-	NighthavenLabs      Map = 378595635123
-	Consulate           Map = 379218689149
-	Lair                Map = 388073319671
-	Stadium2020         Map = 405306299908
-	BankY10             Map = 413779563590
-	BorderY10           Map = 407987100456
-	ChaletY10           Map = 407558616688
-	ClubHouseY10        Map = 407193663917
-	KafeDostoyevskyY10  Map = 413845419788
-	LairY10             Map = 417890697769
-	NighthavenLabsY10   Map = 418119057546
-	ConsulateY10           Map = 418126004176
+	ClubHouse          Map = 837214085
+	KafeDostoyevsky    Map = 1378191338
+	Kanal              Map = 1460220617
+	Yacht              Map = 1767965020
+	PresidentialPlane  Map = 2609218856
+	ConsulateY7        Map = 2609221242
+	BartlettU          Map = 2697268122
+	Coastline          Map = 42090092951
+	Tower              Map = 53627213396
+	Villa              Map = 88107330328
+	Fortress           Map = 126196841359
+	HerefordBase       Map = 127951053400
+	ThemePark          Map = 199824623654
+	Oregon             Map = 231702797556
+	House              Map = 237873412352
+	Chalet             Map = 259816839773
+	Skyscraper         Map = 276279025182
+	Border             Map = 305979357167
+	Favela             Map = 329867321446
+	Bank               Map = 355496559878
+	Outback            Map = 362605108559
+	EmeraldPlains      Map = 365284490964
+	StadiumBravo       Map = 270063334510
+	NighthavenLabs     Map = 378595635123
+	Consulate          Map = 379218689149
+	Lair               Map = 388073319671
+	Stadium2020        Map = 405306299908
+	BankY10            Map = 413779563590
+	BorderY10          Map = 407987100456
+	ChaletY10          Map = 407558616688
+	ClubHouseY10       Map = 407193663917
+	KafeDostoyevskyY10 Map = 413845419788
+	LairY10            Map = 417890697769
+	NighthavenLabsY10  Map = 418119057546
+	ConsulateY10       Map = 418126004176
+	VillaY10           Map = 409325881472
+	TowerY10           Map = 423767322185
+	FortressY10        Map = 398899676157
+	CoastlineY10       Map = 436375283234
 
 	KilledOpponents  WinCondition = "KilledOpponents"
 	SecuredArea      WinCondition = "SecuredArea" // TODO
@@ -558,7 +563,10 @@ func (r *Reader) deriveTeamRoles() {
 		if p.Operator == Recruit {
 			continue
 		}
-		role := p.Operator.Role()
+		role, ok := p.Operator.LookupRole()
+		if !ok {
+			continue // operator newer than this build, try the next player
+		}
 		teamIndex := p.TeamIndex
 		oppositeTeamIndex := teamIndex ^ 1
 		if role == Attack {

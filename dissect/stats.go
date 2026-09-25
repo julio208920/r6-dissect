@@ -134,7 +134,8 @@ func (r *Reader) PlayerStats() []PlayerRoundStats {
 	} else if nWinnersLeftAlive == 0 && lastDeathWasWinner {
 		lastWinnerStanding = lastDeath
 	}
-	if lastWinnerStanding > -1 {
+	roundDecided := r.Header.Teams[0].Won || r.Header.Teams[1].Won
+	if lastWinnerStanding > -1 && roundDecided {
 		username := stats[lastWinnerStanding].Username
 		teamLeft := r.NumPlayers(winningTeamIndex)
 		oneVx := 0

@@ -7,6 +7,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// In newer replays (seen on Y11S3), a player block names the player's controller entity
+// shortly before the username, right after this sequence.
+var controllerIndicator = []byte{0x84, 0x1D, 0x24, 0xAB, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x1B}
+
+// controllerIDBefore returns the controller id named in the player block that ends at end, or nil.
+func (r *Reader) controllerIDBefore(end int) []byte {
+	start := max(end-120, 0)
+	if end > len(r.b) {
+		return nil
+	}
+	i := bytes.LastIndex(r.b[start:end], controllerIndicator)
+	if i < 0 {
+		return nil
+	}
+	i += start + len(controllerIndicator)
+	if i+4 > end {
+		return nil
+	}
+	return bytes.Clone(r.b[i : i+4])
+}
+
 func readPlayer(r *Reader) error {
 	idIndicator := []byte{0x33, 0xD8, 0x3D, 0x4F, 0x23}
 	if r.Header.CodeVersion <= Y7S2 {
@@ -21,6 +42,7 @@ func readPlayer(r *Reader) error {
 			r.deriveTeamRoles()
 		}
 	}()
+	controllerID := r.controllerIDBefore(r.offset)
 	username, err := r.String()
 	if err != nil {
 		return err
@@ -128,17 +150,22 @@ func readPlayer(r *Reader) error {
 		log.Debug().Str("warn", "profileID not found, skipping").Send()
 	}
 	p := Player{
-		ID:        unknownId,
-		ProfileID: profileID,
-		Username:  username,
-		TeamIndex: teamIndex,
-		Operator:  Operator(op),
-		Spawn:     spawn,
-		DissectID: id,
-		uiID:      uiID,
+		ID:           unknownId,
+		ProfileID:    profileID,
+		Username:     username,
+		TeamIndex:    teamIndex,
+		Operator:     Operator(op),
+		Spawn:        spawn,
+		DissectID:    id,
+		uiID:         uiID,
+		controllerID: controllerID,
 	}
-	if p.Operator != Recruit && p.Operator.Role() == Defense {
-		p.Spawn = r.Header.Site // We cannot detect the spawn here on defense
+	if p.Operator != Recruit {
+		if role, ok := p.Operator.LookupRole(); !ok {
+			log.Warn().Uint64("op", uint64(p.Operator)).Str("username", username).Msg("unknown operator role")
+		} else if role == Defense {
+			p.Spawn = r.Header.Site // We cannot detect the spawn here on defense
+		}
 	}
 	log.Debug().Str("username", username).
 		Int("teamIndex", teamIndex).
@@ -160,6 +187,9 @@ func readPlayer(r *Reader) error {
 			r.Header.Players[i].Spawn = p.Spawn
 			r.Header.Players[i].DissectID = p.DissectID
 			r.Header.Players[i].uiID = p.uiID
+			if controllerID != nil {
+				r.Header.Players[i].controllerID = controllerID
+			}
 			found = true
 			break
 		}
