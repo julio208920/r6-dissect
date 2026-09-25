@@ -28,6 +28,7 @@ from parser import (
     ReplayParseError, collect_rec_files, find_replay_folders, group_by_match, load_demo_match,
     parse_match, r6_dissect_available, raw_shape_preview, save_uploads,
 )
+from season_stats import StatsManager
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REPLAYS_DIR = REPO_ROOT / "replays"
@@ -140,7 +141,7 @@ with st.sidebar:
     st.caption(f"{APP_NAME} {APP_VERSION}")
     st.caption(NOTICE)
 
-st.title("Match Report")
+st.title("Dashboard")
 
 # ------------------------------------------------------------- input -------
 match = raw = None
@@ -238,6 +239,7 @@ stats = compute_match_metrics(match)
 rows = pro_league_rows(stats)
 team_names = match["team_names"]
 score = match["final_score"]
+st.session_state["r6_last_match"] = match
 
 if not stats:
     st.warning("This replay has no player data (it may be a practice session or a match "
@@ -246,6 +248,13 @@ if not stats:
 if not any(s.kills for s in stats.values()):
     st.warning("Parsed, but no kills were found. Expand **Parser debug info** in the sidebar "
                "to see what r6-dissect returned.", icon="⚠️")
+
+top_player = max(stats.values(), key=lambda player: (player.eps, player.kills))
+snapshot_columns = st.columns(4)
+snapshot_columns[0].metric("Rounds", len(match["rounds"]))
+snapshot_columns[1].metric("Match score", f"{score[0]} : {score[1]}")
+snapshot_columns[2].metric("Top EPS", top_player.eps)
+snapshot_columns[3].metric("Top performer", top_player.name)
 
 # ------------------------------------------------------------ scorecard ---
 st.markdown(
@@ -263,6 +272,39 @@ for team_idx, team_name in enumerate(team_names[:2]):
     if team_rows:
         won = score[team_idx] > score[1 - team_idx]
         st.markdown(scoreboard_html(team_name, won, team_rows), unsafe_allow_html=True)
+
+with st.expander("Season tracker", expanded=False):
+    tracker_season = st.text_input(
+        "Season", value=st.session_state.get("r6_season", "current"), key="r6_season"
+    ).strip() or "current"
+    available_teams = team_names[:2]
+    selected_team = st.selectbox("Roster team", available_teams, key="r6_tracker_team")
+    selected_team_index = available_teams.index(selected_team)
+    player_names = [
+        player["name"] for player in match.get("players", [])
+        if player.get("team") == selected_team_index
+    ]
+    selected_players = st.multiselect(
+        "Players to track", player_names, default=player_names, key="r6_tracker_players"
+    )
+    tracked_team = st.text_input("Team or school name", value=selected_team, key="r6_tracker_team_name").strip()
+    if is_public_host():
+        st.info("Season tracking is disabled on shared public hosting to keep visitors' stats separate. Use the Windows app or a private local deployment.")
+    with StatsManager(season=tracker_season) as tracker:
+        track_column, log_column = st.columns(2)
+        if track_column.button("Track selected roster", disabled=not selected_players or is_public_host(), type="primary"):
+            tracker.add_players(selected_players, team=tracked_team or selected_team)
+            st.success(f"Tracking {len(selected_players)} players for {tracked_team or selected_team}.")
+        tracked = tracker.tracked_players()
+        if log_column.button("Save this match", disabled=not tracked or is_public_host()):
+            result = tracker.log_match(match)
+            if result.rounds_logged:
+                st.success(f"Saved {result.rounds_logged} player-rounds for {tracker_season}.")
+            else:
+                st.info("All tracked player-rounds from this match were already saved.")
+            for warning in result.warnings:
+                st.warning(warning)
+        st.caption(f"{len(tracked)} players tracked in {tracker_season}. Re-importing a match never counts a round twice.")
 
 c1, c2, c3, _ = st.columns([1, 1, 1, 3])
 c1.download_button("⬇ CSV", rows_csv([{"Player": r["Player"], "Team Name": team_names[r["Team"]], **r}

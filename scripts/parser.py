@@ -228,6 +228,11 @@ def _normalize_round(rs: dict[str, Any], idx: int) -> dict[str, Any]:
         "round_num": rs.get("roundNumber", idx + 1),  # season_stats' dedupe key: keep as-is
         # who was actually in this round -- players leave/rejoin in long matches
         "players": [p["username"] for p in (rs.get("players") or []) if p.get("username")],
+        "operators": {
+            p["username"]: _extract_name(p.get("operator"))
+            for p in (rs.get("players") or [])
+            if p.get("username") and _extract_name(p.get("operator"))
+        },
         "winner_team": winner_team,  # None if the replay doesn't record a winner
         "win_condition": win_condition,
         "attack_team": attack_team,
@@ -247,6 +252,7 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
         round_sources = [raw]
 
     team_of: dict[str, int] = {}
+    operator_histories: dict[str, list[str]] = {}
     team_names = ["Team A", "Team B"]
     for rs in round_sources:
         for i, t in enumerate((rs.get("teams") or [])[:2]):
@@ -257,8 +263,14 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
             uname = p.get("username")
             if uname and uname not in team_of:
                 team_of[uname] = p.get("teamIndex", 0)
+            operator = _extract_name(p.get("operator"))
+            if uname and operator:
+                operator_histories.setdefault(uname, []).append(operator)
 
-    players = [{"name": n, "team": t, "operator_history": []} for n, t in team_of.items()]
+    players = [
+        {"name": n, "team": t, "operator_history": operator_histories.get(n, [])}
+        for n, t in team_of.items()
+    ]
     rounds = [_normalize_round(rs, idx) for idx, rs in enumerate(round_sources)]
 
     last_teams = (round_sources[-1].get("teams") or [{}, {}]) if round_sources else [{}, {}]

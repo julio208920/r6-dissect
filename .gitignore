@@ -29,6 +29,9 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+/web/node_modules/
+/web/dist/
+/web/tsconfig.tsbuildinfo
 
 # Match replays loaded by scripts/app.py
 /replays/

@@ -45,7 +45,9 @@ On macOS/Linux, use `go build` (it produces `r6-dissect`), `source
 
 ## Using the dashboard
 
-The **Match report** page takes a **Replay source**:
+The top navigation includes **Dashboard**, **Match History**, **Operator
+Analytics**, **Team Analytics**, and **School Selection**. Dashboard takes a
+**Replay source**:
 
 - **Folder or zip on this computer**: a path to one match folder, a `.zip`, or
   your whole `MatchReplay` folder. It's filled in automatically when Siege is
@@ -64,6 +66,26 @@ Below the scoreboards you'll find CSV, JSON and TXT downloads and a round-by-rou
 breakdown for each player. The **Use demo match** toggle loads a built-in
 sample match, so you can try the dashboard without a replay. The **Get the
 Windows app** page has the download button and install steps.
+
+Open **Season tracker** below a loaded scoreboard to choose a roster and record
+the match. Only players explicitly tracked are saved, and duplicate rounds are
+ignored. Match History and Team Analytics read those season totals from SQLite.
+Operator Analytics summarizes operator picks and round outcomes for the latest
+replay loaded in the current browser session.
+
+### NECC school data
+
+School Selection accepts a JSON catalog upload. A deployment can instead set
+`NECC_R6_DATA_URL` to an HTTPS JSON endpoint that returns the same shape. The
+catalog uses a top-level `schools` array; each school may contain `logo_url`,
+`primary_color`, and `teams`. R6 team entries may contain `name`, `game`,
+`roster` (strings or `{ "name": "..." }` objects), `standings`, and `matches`.
+Other explicitly named games are filtered out. Selecting a school updates the
+dashboard accent and lets you add its roster to the season tracker.
+
+No NECC endpoint or API credentials are bundled: the official sites did not
+provide a usable public feed from this environment. Until a supported endpoint
+is configured, import a catalog exported from an authorized NECC source.
 
 ## Command line
 
@@ -105,9 +127,6 @@ Team kills never count as kills, but the victim still gets a death.
   correct side for every plant and disable. If it can't tell, a plant is
   credited only when a single player on that side was alive.
 - **EPS** is a close stand-in, not Ubisoft's exact number.
-- Rounds that ended without a score change (an abandoned match) have no
-  winner, so they give no clutch.
-
 ## Publishing
 
 ### The website (Streamlit Community Cloud, free)
@@ -172,9 +191,14 @@ To build it on your own PC instead, run
   Defender and won't publish one it flags. The app isn't code-signed, which is
   why Windows SmartScreen warns about it. A code-signing certificate would
   remove that warning.
-- **Nothing is kept.** The Windows app reads replays in place and never writes
-  to the game's folders. The website keeps uploads only while they're in use
-  and deletes them after an hour unused. Neither stores anyone's stats.
+- **Replays are temporary; tracking is opt-in.** The Windows app reads replays
+  in place and never writes to the game's folders. Uploads are deleted after an
+  hour unused. When you choose to track players and save a match in a private
+  local deployment, derived stats and tracked names are stored in SQLite:
+  `%LOCALAPPDATA%\R6MatchStats\season_stats.db` in the Windows app, or
+  `data/season_stats.db` in a source checkout. Delete that database to remove
+  saved season stats. Tracking writes are disabled on shared public hosting so
+  visitors' stats are not mixed into a server-wide database.
 
 ## Ubisoft's terms
 
@@ -219,13 +243,28 @@ r6-dissect (Go CLI, repo root)  →  JSON per round
 metrics_engine.compute_match_metrics  →  PlayerStats per player
    │  metrics_engine.pro_league_rows               (the 12 display columns)
    ▼
-app.py → report.py, download.py (Streamlit)  /  match_stats.py (CLI)
+app.py → report.py, history.py, operators.py, teams.py, schools.py, download.py
+  (Streamlit)  /  match_stats.py (CLI)
 ```
 
-`app.py` is the entry point: it sets up the page and the two pages
-(`report.py`, `download.py`). `app_info.py` holds the app name, version and
+`app.py` is the entry point: it sets up the page, Three.js scene, and navigation
+across the dashboard pages. `app_info.py` holds the app name, version and
 download links, and tells whether it's running as the public website, the
 Windows app (`desktop/launcher.py`), or from a source checkout.
+
+The React and Unity clients use the shared FastAPI service in `api.py`. Start it
+from the repository root:
+
+```bash
+PYTHONPATH=scripts uvicorn api:app --app-dir scripts --host 127.0.0.1 --port 8000
+```
+
+The service exposes `GET /api/v1/health`, season summaries and match history,
+roster tracking, replay upload/path parsing, match logging, and school catalog
+read/import routes. The API and existing Streamlit tracker use the same SQLite
+database. Set `R6_STATS_DB` to choose its path; on Windows set `R6_DESKTOP=1` to
+use `%LOCALAPPDATA%\R6MatchStats\season_stats.db`. It binds to loopback by
+default and has no authentication, so do not expose it to an untrusted network.
 
 `parser.py` finds the r6-dissect binary via `$R6_DISSECT_BIN`, then `PATH`,
 then `r6-dissect.exe` (Windows) or `r6-dissect` at the repo root, then
@@ -233,7 +272,8 @@ then `r6-dissect.exe` (Windows) or `r6-dissect` at the repo root, then
 `normalize_from_r6_dissect` needs updating.
 
 **Season-long stats:** `season_stats.py` (`StatsManager`) logs tracked
-players' rounds into SQLite across a season without double-counting. See
+players' rounds into SQLite across a season without double-counting. The Team
+Analytics, Match History, and School Selection pages use this data. See
 [SEASON_STATS.md](SEASON_STATS.md) and `example_season_stats.py`.
 
 ## Tests

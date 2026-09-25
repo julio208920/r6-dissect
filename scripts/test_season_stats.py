@@ -138,6 +138,15 @@ class StatsManagerTest(unittest.TestCase):
         self.assertEqual((s.totals["clutch_1v2"], s.clutch_attempts, s.kost_pct, s.team), (1, 1, 100.0, "Team X"))
         self.assertTrue(self.sm.is_round_logged("m1", 1, "Solo"))
 
+    def test_match_history_summarizes_logged_rounds(self):
+        self.sm.add_players(["Fabian", "Kanto"])
+        self.sm.log_match(self.match)
+        history = self.sm.match_history()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["match_id"], self.match["match_id"])
+        self.assertEqual(history[0]["rounds"], 9)
+        self.assertEqual(history[0]["players"], 2)
+
     def test_rebuild_totals_reproduces_totals(self):
         self.sm.add_players(TEAM0 + TEAM1)
         self.sm.log_match(self.match)

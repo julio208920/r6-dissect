@@ -14,7 +14,7 @@ MatchData ── metrics_engine.compute_match_metrics()  per-player, per-round r
 StatsManager.log_match()                        adds tracked players' rounds to the season totals
    │
    ▼
-data/season_stats.db  (SQLite)  →  get_player_stats / get_team_stats / export_json
+data/season_stats.db  (SQLite; Windows app uses LocalAppData)  →  get_player_stats / get_team_stats / export_json
 ```
 
 Files:
@@ -128,22 +128,12 @@ If a match does carry real team names (e.g. custom matches named in-game),
 players with no pinned team take the name from the match. When a logged
 player ends up with no team at all, `LogResult.warnings` says so.
 
-### 5. Hook it into the dashboard (optional)
+### 5. Use the dashboard tracker
 
-In `app.py`, after a match is parsed:
-
-```python
-from season_stats import StatsManager
-
-if st.button("Add this match to the season"):
-    with StatsManager(season="Y10S3") as sm:
-        res = sm.log_match(match)
-    st.success(f"Logged {res.rounds_logged} player-rounds "
-               f"({res.rounds_skipped_duplicate} already counted).")
-```
-
-Because logging skips rounds that were already counted, clicking it twice
-is harmless.
+After loading a replay, expand **Season tracker** below the scoreboards. Select
+the roster and team label, track those players, then save the match. The
+Match History and Team Analytics navigation pages show saved totals; repeated
+imports skip rounds already recorded for the season.
 
 ---
 

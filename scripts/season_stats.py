@@ -28,13 +28,20 @@ counted or not counted at all.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "season_stats.db"
+if os.environ.get("R6_STATS_DB"):
+    DEFAULT_DB_PATH = Path(os.environ["R6_STATS_DB"]).expanduser()
+elif os.environ.get("R6_DESKTOP") == "1":
+    _local_data = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    DEFAULT_DB_PATH = _local_data / "R6MatchStats" / "season_stats.db"
+else:
+    DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "season_stats.db"
 DEFAULT_SEASON = "current"
 SCHEMA_VERSION = 1
 CLUTCH_SIZES = range(1, 6)
@@ -515,3 +522,15 @@ class StatsManager:
             "SELECT DISTINCT season FROM logged_rounds UNION SELECT DISTINCT season FROM player_totals"
         )
         return sorted(r[0] for r in rows)
+
+    def match_history(self) -> list[dict[str, Any]]:
+        """Recorded matches for the selected season, newest first."""
+        rows = self._conn.execute(
+            """SELECT match_id, MAX(logged_at) AS saved_at,
+                      COUNT(DISTINCT round_num) AS rounds,
+                      COUNT(DISTINCT username) AS players
+               FROM logged_rounds WHERE season = ?
+               GROUP BY match_id ORDER BY saved_at DESC, match_id""",
+            (self.season,),
+        )
+        return [dict(row) for row in rows]

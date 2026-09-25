@@ -63,7 +63,8 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
 - `assets\app.ico` is the icon (with `scripts\icon.png`, the page's favicon),
   drawn by `make_icon.py`.
 
-The app writes its log to `%LOCALAPPDATA%\R6MatchStats\app.log`.
+The app writes its log to `%LOCALAPPDATA%\R6MatchStats\app.log` and explicitly
+tracked season stats to `%LOCALAPPDATA%\R6MatchStats\season_stats.db`.
 
 For testing, set `R6_NO_WINDOW=1` to open the app in the default browser
 instead of a window, or `R6_SMOKE_TEST=result.json` to load the app, record

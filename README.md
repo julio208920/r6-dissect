@@ -27,6 +27,16 @@ See [scripts/README.md](scripts/README.md) for details, including how to
 publish the website (Streamlit Community Cloud) and the Windows app (GitHub
 Releases).
 
+The dashboard includes a lightweight Three.js tactical scene, match history,
+operator and team analytics, and an opt-in season tracker. School rosters can be
+loaded from an authorized NECC JSON feed or imported catalog; see the dashboard
+documentation for the supported format and configuration.
+
+A React/R3F web client and Unity Windows client now share the local FastAPI
+service and SQLite season database. See [web/README.md](web/README.md) and
+[unity/README.md](unity/README.md) for setup. The existing packaged Windows app
+remains the verified release until a licensed Unity build is available.
+
 R6 Match Stats is an unofficial fan project and isn't endorsed by Ubisoft. See
 [its notes on Ubisoft's terms](scripts/README.md#ubisofts-terms).
 

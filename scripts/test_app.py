@@ -14,6 +14,7 @@ import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 import app_info
+import necc_data
 import parser as replay_parser
 
 APP = str(Path(__file__).with_name("app.py"))
@@ -65,6 +66,45 @@ class TestReportPage(unittest.TestCase):
         tables = [m.value for m in at.markdown if 'class="pl"' in m.value]
         self.assertEqual(len(tables), 2)
         self.assertIn("Team Liquid", tables[0])
+
+
+class TestOperatorNormalization(unittest.TestCase):
+    def test_operator_data_is_preserved_per_round(self):
+        raw = {"rounds": [
+            {"roundNumber": 1, "players": [{"username": "Player", "teamIndex": 0,
+                                               "operator": {"name": "Ash"}}]},
+            {"roundNumber": 2, "players": [{"username": "Player", "teamIndex": 0,
+                                               "operator": {"name": "Sledge"}}]},
+        ]}
+        match = replay_parser.normalize_from_r6_dissect(raw)
+        self.assertEqual(match["players"][0]["operator_history"], ["Ash", "Sledge"])
+        self.assertEqual(match["rounds"][0]["operators"], {"Player": "Ash"})
+
+
+class TestSchoolCatalog(unittest.TestCase):
+    def test_normalizes_school_roster_and_filters_other_games(self):
+        schools = necc_data.normalize_school_catalog({"schools": [{
+            "name": "North University",
+            "teams": [
+                {"name": "Varsity", "game": "Rainbow Six Siege", "roster": ["Ash", {"username": "Thermite"}]},
+                {"name": "Overwatch", "game": "Overwatch", "roster": ["Tracer"]},
+            ],
+        }]})
+        self.assertEqual(schools[0]["teams"][0]["roster"], ["Ash", "Thermite"])
+        self.assertEqual([team["name"] for team in schools[0]["teams"]], ["Varsity"])
+
+    def test_rejects_catalog_without_schools(self):
+        with self.assertRaises(ValueError):
+            necc_data.normalize_school_catalog({"schools": []})
+
+
+class TestAnalyticsPages(unittest.TestCase):
+    def test_new_navigation_pages_render_empty_states(self):
+        for page in ("history.py", "operators.py", "teams.py", "schools.py"):
+            with self.subTest(page=page):
+                at = run_app(R6_HOSTED="1")
+                at.switch_page(page).run()
+                self.assertFalse(at.exception)
 
 
 RELEASE = {"version": "9.9.0", "url": "https://github.com/o/r/releases/tag/v9.9.0",

@@ -15,6 +15,7 @@ from pathlib import Path
 import streamlit as st
 
 from app_info import APP_NAME, quiet_windows_connection_resets
+from ui import render_tactical_scene
 
 if __name__ == "__main__":
     from streamlit import runtime
@@ -39,35 +40,53 @@ st.set_page_config(page_title=APP_NAME, page_icon=str(Path(__file__).with_name("
 # ---------------------------------------------------------------- styling --
 st.markdown("""
 <style>
-:root { --bg:#0d1117; --panel:#151b23; --row:#1a212b; --border:#232b36; --accent:#ff5c1a;
-        --dim:#8b949e; --text:#f0f3f6; --pos:#3fb950; --neg:#f85149; }
-.stApp { background-color: var(--bg); }
-section[data-testid="stSidebar"] { background-color: var(--panel); }
-h1, h2, h3, h4 { color: var(--text) !important; letter-spacing: -0.02em; }
-.scorecard { background:var(--panel); border:1px solid var(--border); border-radius:14px;
-             padding:20px 28px; margin-bottom:18px; display:flex; align-items:center;
-             justify-content:space-between; gap:16px; flex-wrap:wrap; }
-.team-name { font-size:1.15rem; color:var(--text); font-weight:700; }
-.score-big { font-size:2.6rem; font-weight:800; color:var(--accent); }
-.map-pill { display:inline-block; background:#1f2733; color:var(--dim); border-radius:999px;
-            padding:4px 14px; font-size:0.8rem; font-weight:600; border:1px solid var(--border); }
-.pl-wrap { overflow-x:auto; margin-bottom:22px; border:1px solid var(--border); border-radius:10px; }
-table.pl { width:100%; border-collapse:collapse; font-size:0.9rem; color:var(--text);
-           font-variant-numeric: tabular-nums; }
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+:root { --bg:#101416; --panel:#181e20; --row:#202729; --border:#333d3d; --accent:#d49353;
+        --mint:#83a99c; --dim:#9ba7a4; --text:#e8ece9; --pos:#86b99f; --neg:#e17e69; }
+.stApp { background:linear-gradient(122deg, #101416 0%, #171d1f 58%, #14191a 100%); color:var(--text); }
+.stApp, [data-testid="stMarkdownContainer"] p, [data-testid="stWidgetLabel"] p { font-family:'IBM Plex Sans', sans-serif; }
+.stMainBlockContainer { max-width:1480px; padding-top:1.2rem; padding-bottom:4rem; }
+header[data-testid="stHeader"] { background:rgba(16,20,22,.84); }
+section[data-testid="stSidebar"] { background:#161c1e; border-right:1px solid var(--border); }
+h1, h2, h3, h4 { color:var(--text) !important; font-family:'Barlow Condensed', sans-serif !important; font-weight:600 !important; letter-spacing:0 !important; }
+h1 { font-size:2.2rem !important; }
+[data-testid="stMetric"] { padding:12px 14px; background:rgba(24,30,32,.72); border:1px solid var(--border); border-radius:4px; }
+[data-testid="stMetricLabel"] { color:var(--dim) !important; }
+[data-testid="stMetricValue"] { font-family:'IBM Plex Mono', monospace; }
+[data-testid="stTabs"] button[role="tab"] { font-family:'Barlow Condensed',sans-serif; font-size:1.05rem; text-transform:uppercase; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:var(--accent); }
+button[kind="primary"] { background:#a96839; border-color:#a96839; color:#101416; }
+button[kind="primary"]:hover { background:#c4844c; border-color:#c4844c; color:#101416; }
+.scorecard { background:linear-gradient(112deg,#202729,#171d1f); border:1px solid var(--border); border-left:3px solid var(--accent);
+             border-radius:4px; padding:18px 24px; margin-bottom:18px; display:flex; align-items:center;
+             justify-content:space-between; gap:16px; flex-wrap:wrap; box-shadow:0 12px 28px rgba(0,0,0,.18); }
+.team-name { font-size:1.05rem; color:var(--text); font-weight:700; }
+.score-big { font:600 2.35rem 'IBM Plex Mono',monospace; color:var(--accent); }
+.map-pill { display:inline-block; background:#252d2e; color:var(--dim); border-radius:2px;
+            padding:4px 10px; font:10px 'IBM Plex Mono',monospace; text-transform:uppercase; border:1px solid var(--border); }
+.pl-wrap { overflow-x:auto; margin-bottom:22px; border:1px solid var(--border); border-radius:4px; }
+table.pl { width:100%; border-collapse:collapse; font-size:0.84rem; color:var(--text); font-variant-numeric:tabular-nums; }
 table.pl caption { caption-side:top; text-align:left; padding:10px 14px; font-weight:700;
-                   font-size:1.05rem; background:var(--panel); color:var(--text); }
-table.pl caption .won { color:var(--accent); margin-left:8px; }
-table.pl th { background:var(--panel); color:var(--dim); font-weight:600; text-align:center;
-              padding:8px 10px; white-space:nowrap; border-top:1px solid var(--border); }
-table.pl td { padding:9px 10px; text-align:center; white-space:nowrap; border-top:1px solid var(--border); }
-table.pl tr:nth-child(even) td { background:var(--row); }
+                   font-size:1rem; background:var(--panel); color:var(--text); }
+table.pl caption .won { color:var(--accent); margin-left:8px; font:10px 'IBM Plex Mono',monospace; }
+table.pl th { background:#1b2224; color:var(--dim); font:500 10px 'IBM Plex Mono',monospace; text-align:center;
+              padding:9px 8px; white-space:nowrap; border-top:1px solid var(--border); }
+table.pl td { padding:9px 8px; text-align:center; white-space:nowrap; border-top:1px solid #303839; }
+table.pl tr:nth-child(even) td { background:rgba(32,39,41,.72); }
 table.pl th:first-child, table.pl td:first-child { text-align:left; font-weight:600; }
 table.pl td.eps { color:var(--accent); font-weight:800; }
 .pos { color:var(--pos); } .neg { color:var(--neg); }
+@media(max-width:700px) { .stMainBlockContainer { padding-left:1rem; padding-right:1rem; } h1 { font-size:1.8rem !important; } }
 </style>
 """, unsafe_allow_html=True)
 
-st.navigation([
-    st.Page("report.py", title="Match report", icon="🎯", default=True),
-    st.Page("download.py", title="Get the Windows app", icon="💾"),
-]).run()
+page = st.navigation([
+    st.Page("report.py", title="Dashboard", icon=":material/dashboard:", default=True),
+    st.Page("history.py", title="Match History", icon=":material/history:"),
+    st.Page("operators.py", title="Operator Analytics", icon=":material/target:"),
+    st.Page("teams.py", title="Team Analytics", icon=":material/groups:"),
+    st.Page("schools.py", title="School Selection", icon=":material/school:"),
+    st.Page("download.py", title="Get the Windows app", icon=":material/download:"),
+], position="top")
+render_tactical_scene(accent_color=st.session_state.get("selected_school_color", "#d49353"))
+page.run()
