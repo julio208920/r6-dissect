@@ -283,8 +283,10 @@ def smoke_test(window) -> dict:
 
 
 def dashboard_is_rendered(text: str) -> bool:
-    """Recognize the current page name while preserving older report wording."""
-    return "Dashboard" in text or "Match Report" in text
+    """Recognize the current page name while preserving older report wording.
+    Themes can capitalize headings, and the window reports text as shown ("DASHBOARD")."""
+    text = text.casefold()
+    return "dashboard" in text or "match report" in text
 
 
 def run_in_browser(server: Server) -> int:
