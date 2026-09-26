@@ -275,7 +275,9 @@ class StatsManager:
             sm.get_player_stats("Fabian")
     """
 
-    def __init__(self, db_path: str | Path = DEFAULT_DB_PATH, season: str = DEFAULT_SEASON):
+    def __init__(self, db_path: str | Path | None = None, season: str = DEFAULT_SEASON):
+        if db_path is None:  # read now, not when this module loaded, so tests can move it
+            db_path = DEFAULT_DB_PATH
         self.db_path = Path(db_path)
         if str(db_path) != ":memory:":
             self.db_path.parent.mkdir(parents=True, exist_ok=True)

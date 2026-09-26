@@ -99,6 +99,7 @@ def serve(port: int, parent_pid: int) -> int:
         "--browser.gatherUsageStats=false",
         "--client.toolbarMode=minimal",  # no Streamlit developer menu (Deploy, Rerun, ...)
         "--theme.base=dark",
+        "--theme.primaryColor=#52d5f2",  # the default school theme's color on sliders, toggles, options
     ]
     return stcli.main()
 

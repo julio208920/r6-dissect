@@ -3,9 +3,12 @@ Run from the repo root:  python -m unittest discover -s scripts"""
 
 from __future__ import annotations
 
+import copy
 import io
 import json
 import os
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -16,16 +19,33 @@ from streamlit.testing.v1 import AppTest
 import app_info
 import necc_data
 import parser as replay_parser
+import season_stats
 
 APP = str(Path(__file__).with_name("app.py"))
+_DB_FOLDER = tempfile.mkdtemp()
+_PATCHES = [
+    # the pages' stats database: a throwaway one, never this PC's real one
+    mock.patch.object(season_stats, "DEFAULT_DB_PATH", Path(_DB_FOLDER) / "stats.db"),
+    # and no replay folder is found on this PC, so nothing's parsed unless a test asks for it
+    mock.patch.object(replay_parser, "find_replay_folders", return_value=[]),
+]
+
+
+def setUpModule():
+    for patch in _PATCHES:
+        patch.start()
+
+
+def tearDownModule():
+    for patch in _PATCHES:
+        patch.stop()
+    shutil.rmtree(_DB_FOLDER, ignore_errors=True)
 
 
 def run_app(local_visitor: bool = True, **env: str) -> AppTest:
-    # AppTest has no real visitor IP, and no replay folder is auto-detected,
-    # so nothing gets parsed unless a test asks for it
+    # AppTest has no real visitor IP; env and the visitor apply to this first run only
     with mock.patch.dict(os.environ, env), \
-            mock.patch.object(app_info, "is_loopback", return_value=local_visitor), \
-            mock.patch.object(replay_parser, "find_replay_folders", return_value=[]):
+            mock.patch.object(app_info, "is_loopback", return_value=local_visitor):
         at = AppTest.from_file(APP, default_timeout=60)
         at.run()
     return at
@@ -126,51 +146,224 @@ class TestSchoolCatalog(unittest.TestCase):
             necc_data.normalize_school_catalog({"schools": []})
 
 
+def with_matches(at: AppTest, count: int = 2) -> AppTest:
+    """Give the session a replay source of `count` demo matches (Fabian recorded them), already
+    parsed, the way Dashboard leaves it after loading a folder."""
+    from sample_data import SAMPLE_MATCH
+
+    parsed = {}
+    for i in range(count):
+        match = copy.deepcopy(SAMPLE_MATCH)
+        match.update(match_id=f"demo-{i}", played_at=f"2026-09-2{i} 20:00:00", recording_player="Fabian",
+                     match_type="Ranked")
+        parsed[f"Match-2026-09-2{i}_20-00-00-1"] = (match, {}, [])
+    at.session_state["source"] = {"sig": ("upload", "test"), "workdir": tempfile.mkdtemp(), "parsed": parsed,
+                                  "groups": {n: [f"{n}-R01.rec"] for n in parsed}, "skipped": None}
+    return at
+
+
 class TestAnalyticsPages(unittest.TestCase):
-    def test_new_navigation_pages_render_empty_states(self):
-        for page in ("history.py", "operators.py", "teams.py", "schools.py"):
+    """The pages that read the stats database, run as in the Windows app (on this PC)."""
+
+    def setUp(self):
+        patch = mock.patch.object(season_stats, "DEFAULT_DB_PATH", Path(tempfile.mkdtemp(dir=_DB_FOLDER)) / "stats.db")
+        patch.start()
+        self.addCleanup(patch.stop)  # every test starts with an empty database
+
+    def test_pages_without_matches_say_where_to_start(self):
+        for page in ("ask.py", "history.py", "operators.py", "teams.py", "schools.py", "appearance.py"):
             with self.subTest(page=page):
-                at = run_app(R6_HOSTED="1")
+                at = run_app()
                 at.switch_page(page).run()
                 self.assertFalse(at.exception)
+                if page not in ("schools.py", "appearance.py"):
+                    self.assertTrue(any("No matches yet" in i.value for i in at.info), page)
 
-    @staticmethod
-    def build_team(at: AppTest, team: str, players: list[str]) -> AppTest:
-        at.switch_page("teams.py").run()
-        at.text_input[0].set_value(team)
-        for i, name in enumerate(players):
-            at.text_input[1 + i].set_value(name)
-        at.slider[0].set_value(2)
-        return at.button[0].click().run()
+    def test_ask_answers_about_the_loaded_matches(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import SAMPLE_MATCH
 
-    def test_build_a_team_needs_replays_loaded_first(self):
-        at = self.build_team(run_app(R6_HOSTED="1"), "Liquid", ["Fabian"])
+        at = with_matches(run_app())
+        at.switch_page("ask.py").run()
+        at.text_input(key="ask_question").set_value("who has the most kills?")
+        at = next(b for b in at.button if b.label == "Ask").click().run()
         self.assertFalse(at.exception)
-        self.assertIn("Dashboard", at.info[0].value)
+        best = max(compute_match_metrics(SAMPLE_MATCH).values(), key=lambda s: s.kills)
+        self.assertEqual(best.name, "Fabian")  # who recorded the demo matches, so "you"
+        headline = next(m.value for m in at.markdown if m.value.startswith("#### "))
+        # the same match twice: twice the kills
+        self.assertEqual(headline, f"#### You have the most kills: {2 * best.kills} (2 matches).")
+        self.assertEqual(len(at.dataframe), 1)
 
-    def test_build_a_team_from_the_loaded_matches(self):
-        from sample_data import SAMPLE_MATCH, TEAM0
+    def test_ask_example_buttons(self):
+        at = with_matches(run_app())
+        at.switch_page("ask.py").run()
+        at = next(b for b in at.button if "best map" in b.label.lower()).click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.text_input(key="ask_question").value, "What's my best map?")
+        self.assertTrue(any(m.value.startswith("#### ") for m in at.markdown))
 
-        at = run_app(R6_HOSTED="1")
-        # what Dashboard keeps for a loaded replay folder, with both matches already parsed
-        players = {p["name"]: p["team"] for p in SAMPLE_MATCH["players"]}
-        at.session_state["source"] = {"groups": {"m1": ["m1-R01.rec"], "m2": ["m2-R01.rec"]},
-                                      "parsed": {n: (SAMPLE_MATCH, {}, []) for n in ("m1", "m2")},
-                                      "players": {"m1": players, "m2": players}}
-        at = self.build_team(at, "Liquid", TEAM0[:3] + ["Nobody"])
+    def test_match_history_lists_every_match(self):
+        at = with_matches(run_app(), count=3)
+        at.switch_page("history.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual(len(at.dataframe[0].value), 3)
+        self.assertEqual({m.label: m.value for m in at.metric}["Matches"], "3")
+
+    def test_build_a_team_starts_with_you_and_your_teammates(self):
+        from sample_data import TEAM0
+
+        at = with_matches(run_app())
+        at.switch_page("teams.py").run()
+        players = [at.text_input(key=f"roster_New team_{i}").value for i in range(5)]
+        self.assertEqual(players[0], "Fabian")
+        self.assertEqual(sorted(players), sorted(TEAM0))  # Fabian's four teammates fill the rest
+
+    def test_build_a_team(self):
+        at = with_matches(run_app())
+        at.switch_page("teams.py").run()
+        players = [at.text_input(key=f"roster_New team_{i}").value for i in range(4)]
+        at.text_input(key="team_name_New team").set_value("Liquid")
+        at.text_input(key="roster_New team_4").set_value("Nobody")  # four of the team, and one stranger
+        at = next(b for b in at.button if b.label == "Show team stats").click().run()
         self.assertFalse(at.exception)
         self.assertEqual({m.label: m.value for m in at.metric}["Matches"], "2")
         table = at.dataframe[0].value
-        self.assertEqual(sorted(table["Player"]), sorted(TEAM0[:3]))
+        self.assertEqual(sorted(table["Player"]), sorted(players))
         self.assertEqual(set(table["Matches"]), {2})
         self.assertIn("EPS", table.columns)
         self.assertIn("Nobody", at.warning[0].value)
+        self.assertEqual(at.selectbox(key="team_choice").value, "Liquid")  # saved, and Ask knows it now
 
-    def test_season_teams_have_an_eps_column(self):
-        at = run_app(R6_HOSTED="1")
+    def test_operators_over_all_matches(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import SAMPLE_MATCH
+
+        at = with_matches(run_app())
+        at.switch_page("operators.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.selectbox[0].value, "fabian")  # you come first
+        table = at.dataframe[0].value
+        rounds = compute_match_metrics(SAMPLE_MATCH)["Fabian"].rounds_played
+        self.assertEqual(dict(zip(table["Operator"], table["Rounds"])), {"Ash": 2 * rounds})
+
+    def test_operators_in_the_open_match(self):
+        from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
+
+        at = run_app()
+        at.switch_page("operators.py").run()
+        at = at.segmented_control[0].set_value("This match").run()
+        self.assertIn("No matches yet", at.info[0].value)
+        # before a match is opened on the Dashboard: the newest one
+        at = with_matches(at).run()
+        self.assertFalse(at.exception)
+        self.assertIn("newest match", at.caption[0].value)
+        picks = {r["Operator"]: r["Picks"] for r in at.dataframe[0].value.to_dict("records")}
+        rounds = len(SAMPLE_MATCH["rounds"])
+        self.assertEqual(picks, {"Ash": rounds * len(TEAM0), "Jager": rounds * len(TEAM1)})
+        at.session_state["r6_last_match"] = SAMPLE_MATCH  # opened on the Dashboard
+        at = at.run()
+        self.assertFalse(any("newest match" in c.value for c in at.caption))
+
+    def test_track_a_school_roster(self):
+        from necc_data import normalize_school_catalog
+        from season_stats import StatsManager
+
+        at = run_app()
+        at.session_state["necc_schools"] = normalize_school_catalog({"schools": [{"name": "Test U", "teams": [
+            {"name": "Varsity", "game": "Rainbow Six Siege", "roster": ["_Sniper_", "Bravo"]}]}]})
+        at.switch_page("schools.py").run()
+        at = next(b for b in at.button if b.label == "Track this roster").click().run()
+        self.assertFalse(at.exception)
+        self.assertIn("Added 2 players to Varsity", at.success[0].value)
+        with StatsManager() as manager:  # this test's own database, not a real one
+            self.assertEqual(sorted(manager.tracked_players()), ["Bravo", "_Sniper_"])
+
+    def test_season_teams_tab(self):
+        at = run_app()
         at.switch_page("teams.py").run()
         self.assertFalse(at.exception)
         self.assertEqual([t.label for t in at.tabs], ["Build a team", "Season teams"])
+
+
+class TestStatsSync(unittest.TestCase):
+    """sources.sync_stats_db: every replay of a folder into the stats database."""
+
+    def test_a_replay_that_fails_is_skipped_and_the_rest_are_added(self):
+        from sample_data import SAMPLE_MATCH
+        from sources import sync_stats_db
+        from stats_db import StatsDB
+
+        def parse_match(recs):
+            if recs == ["b.rec"]:
+                raise KeyError("roundNumber")  # read by r6-dissect, but not the way this app expects
+            if recs == ["c.rec"]:
+                raise replay_parser.ReplayParseError("r6-dissect couldn't read it")
+            return dict(SAMPLE_MATCH, match_id=recs[0]), {}, []
+
+        groups = {"Match-2026-09-20_19-00-00-1": ["a.rec"], "Match-2026-09-21_19-00-00-2": ["b.rec"],
+                  "Match-2026-09-22_19-00-00-3": ["c.rec"]}
+        state = {"groups": groups, "parsed": {}}
+        with StatsDB(":memory:") as db, mock.patch("sources.parse_match", side_effect=parse_match):
+            self.assertEqual(sync_stats_db(state, db), 1)
+            self.assertEqual(db.summary()["matches"], 1)
+            skipped = {r["source"]: r["reason"] for r in db.query("SELECT source, reason FROM skipped")}
+            self.assertEqual(sorted(skipped), ["Match-2026-09-21_19-00-00-2", "Match-2026-09-22_19-00-00-3"])
+            self.assertIn("roundNumber", skipped["Match-2026-09-21_19-00-00-2"])
+            self.assertEqual(sync_stats_db(state, db), 0)  # and they aren't tried again on every page
+
+
+class TestMatchLabels(unittest.TestCase):
+    def test_names_show_as_written_in_markdown(self):
+        from ui import md
+
+        self.assertEqual(md("_Sniper_"), r"\_Sniper\_")  # not an italic "Sniper"
+        self.assertEqual(md("Rook-_- has 3 kills"), r"Rook-\_- has 3 kills")
+        self.assertEqual(md("Paltry.FBRD: 67% (3 matches)."), "Paltry.FBRD: 67% (3 matches).")
+
+    def test_labels(self):
+        from sources import match_label
+        from stats_db import nice_time
+
+        name = "Match-2026-09-25_22-55-04-8956"  # the Dashboard's picker, before the match is imported
+        self.assertEqual(match_label(name), nice_time("2026-09-25 22:55:04"))
+        row = {"played_at": "2026-09-25 22:55:04", "map": "Bank", "team": 1, "score0": 2, "score1": 4, "won": 1}
+        self.assertEqual(match_label(name, row), f"{nice_time('2026-09-25 22:55:04')} · Bank · Won 4–2")
+        self.assertEqual(match_label("my upload"), "my upload")
+
+
+class TestWindowsAppBundle(unittest.TestCase):
+    """The Windows app ships the pages as plain files, listed in desktop/R6MatchStats.spec, and
+    PyInstaller can't see what plain files import: anything missing only fails in the installed app."""
+
+    def test_every_file_and_module_the_pages_need_is_bundled(self):
+        import ast
+        import re
+        import sys
+
+        scripts = Path(__file__).resolve().parent
+        spec = (scripts.parent / "desktop" / "R6MatchStats.spec").read_text(encoding="utf-8")
+        files = set(re.findall(r'"(\w+\.py)"', spec.split("datas")[0]))
+        stdlib = set(re.findall(r'"([\w.]+)"', spec.split("standard library")[1].split("]")[0]))
+        local = {p.name for p in scripts.glob("*.py")}
+        needed, imports, todo = set(), set(), ["app.py"]
+        while todo:
+            name = todo.pop()
+            if name in needed:
+                continue
+            needed.add(name)
+            source = (scripts / name).read_text(encoding="utf-8")
+            found = set(re.findall(r'st\.Page\("(\w+\.py)"', source))
+            for node in ast.walk(ast.parse(source)):
+                if isinstance(node, ast.Import):
+                    imports |= {a.name for a in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                    imports.add(node.module)
+            found |= {m.split(".")[0] + ".py" for m in imports}
+            todo += [f for f in found & local if f not in needed]
+        self.assertEqual(sorted(needed - files), [])
+        used = {m for m in imports if m.split(".")[0] in sys.stdlib_module_names} - {"__future__"}
+        self.assertEqual(sorted(used - stdlib), [])
 
 
 RELEASE = {"version": "9.9.0", "url": "https://github.com/o/r/releases/tag/v9.9.0",
@@ -185,8 +378,7 @@ def download_page(release, **env: str) -> AppTest:
     lookup = {"side_effect": release} if isinstance(release, Exception) else {"return_value": release}
     with mock.patch.dict(os.environ, env), \
             mock.patch.object(app_info, "is_loopback", return_value=True), \
-            mock.patch.object(app_info, "latest_release", **lookup), \
-            mock.patch.object(replay_parser, "find_replay_folders", return_value=[]):
+            mock.patch.object(app_info, "latest_release", **lookup):
         at = AppTest.from_file(APP, default_timeout=60)
         at.run()
         at.switch_page("download.py").run()

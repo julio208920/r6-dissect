@@ -7,28 +7,26 @@ scoreboard for every player, a round-by-round breakdown, and CSV/JSON exports.
 
 from __future__ import annotations
 
-import contextlib
 import html
 import json
 import os
-import shutil
-import tempfile
-import threading
-import time
 from pathlib import Path
 
 import streamlit as st
 
-from app_info import APP_NAME, APP_VERSION, NOTICE, is_loopback, is_public_host, is_windows_app
-from file_guard import ReplayScanner
+from app_info import APP_NAME, APP_VERSION, NOTICE, is_public_host, is_windows_app
 from metrics_engine import (
     PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, rows_csv, scoreboard_text,
 )
 from parser import (
-    ReplayParseError, collect_rec_files, find_replay_folders, group_by_match, load_demo_match,
-    parse_match, r6_dissect_available, raw_shape_preview, replay_source_version, save_uploads,
+    ReplayParseError, find_replay_folders, load_demo_match, r6_dissect_available, raw_shape_preview, save_uploads,
 )
 from season_stats import GENERIC_TEAM_NAMES, StatsManager
+from sources import (
+    can_read_local_files, folder_source, load_source, match_label, match_time, open_stats_db, parse,
+    start_workdir_sweeper,
+)
+from ui import md
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REPLAYS_DIR = REPO_ROOT / "replays"
@@ -36,60 +34,6 @@ REPLAYS_DIR = REPO_ROOT / "replays"
 UPLOAD = "Upload"
 FOLDER = "Folder or zip on this computer"
 REPLAYS_FOLDER = "From the replays/ folder"
-
-
-WORKDIR_PREFIX = "r6-match-"
-WORKDIR_MAX_IDLE = 3600  # seconds; extracted replays are deleted after an hour unused
-
-
-def _sweep_idle_workdirs() -> None:
-    """Delete extracted replays nobody has used for an hour, so uploads don't pile
-    up on a server (a visitor leaving the page never tells us)."""
-    cutoff = time.time() - WORKDIR_MAX_IDLE
-    for d in Path(tempfile.gettempdir()).glob(WORKDIR_PREFIX + "*"):
-        try:
-            if d.is_dir() and d.stat().st_mtime < cutoff:
-                shutil.rmtree(d, ignore_errors=True)
-        except OSError:
-            pass
-
-
-@st.cache_resource(show_spinner=False)
-def _start_workdir_sweeper() -> None:
-    """Sweep idle workdirs every 10 minutes for as long as this server runs, even
-    when nobody's visiting. Started once per server process."""
-    def sweep_forever() -> None:
-        while True:
-            time.sleep(600)
-            _sweep_idle_workdirs()
-
-    threading.Thread(target=sweep_forever, name="workdir-sweeper", daemon=True).start()
-
-
-def _load_source(sig, collect) -> dict:
-    """Find the matches in a source once per source: collect(workdir, scanner) -> .rec
-    paths. Zips/uploads are extracted into a workdir that lives as long as the source
-    is selected (and is in use), so each match can be parsed only when it's picked."""
-    state = st.session_state.get("source")
-    if state and state["sig"] == sig:
-        with contextlib.suppress(OSError):
-            os.utime(state["workdir"])  # still in use: keep it from being swept
-        return state
-    if state:
-        shutil.rmtree(state["workdir"], ignore_errors=True)
-    _sweep_idle_workdirs()
-    workdir = tempfile.mkdtemp(prefix=WORKDIR_PREFIX)
-    scanner = ReplayScanner()
-    state = {"sig": sig, "workdir": workdir, "parsed": {}}
-    try:
-        state["groups"] = group_by_match(collect(Path(workdir), scanner))
-        if not state["groups"]:
-            state["error"] = "No Siege replay files found."
-    except ReplayParseError as e:
-        state["error"] = str(e)
-    state["skipped"] = scanner.summary()
-    st.session_state["source"] = state
-    return state
 
 
 def _signed_cell(text: str) -> str:
@@ -116,11 +60,8 @@ def scoreboard_html(team_name: str, won: bool, rows: list[dict]) -> str:
             f"<thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 
 
-_start_workdir_sweeper()
-
-# Reading folders on disk only makes sense, and is only safe, when the visitor is
-# on the machine running the app -- never on the public website.
-local_files = not is_public_host() and is_loopback(st.context.ip_address)
+start_workdir_sweeper()
+local_files = can_read_local_files()
 if not local_files:
     sources = [UPLOAD]
 elif is_windows_app():
@@ -158,7 +99,7 @@ else:
             help="On GitHub Codespaces, browser uploads over ~50 MB fail with HTTP 413; "
                  "put big matches in replays/ instead." if os.environ.get("CODESPACES") else None,
         )
-    picked = None  # (cache signature, collect(tempdir) -> .rec paths)
+    state = None
     if source == UPLOAD:
         uploaded = st.file_uploader(
             "Drop the match's .zip (or every .rec file from the match folder)",
@@ -171,22 +112,25 @@ else:
                        "reads the folder directly.")
         if uploaded:
             sig = ("upload",) + tuple((u.name, u.size, u.file_id) for u in uploaded)
-            picked = (sig, lambda td, sc, u=uploaded: save_uploads(u, td, sc))
+            state = load_source(sig, lambda td, sc, u=uploaded: save_uploads(u, td, sc))
     elif source == FOLDER:
         found = find_replay_folders()
-        typed = st.text_input(
-            "Path to a match folder, a .zip, or your whole MatchReplay folder",
-            value=str(found[0]) if found else "",
-            placeholder=r"C:\Program Files (x86)\Steam\steamapps\common\Tom Clancy's Rainbow Six Siege\MatchReplay",
-        ).strip().strip('"')
-        if found and typed == str(found[0]):
-            st.caption("Found your Siege replays folder automatically.")
+        # found automatically: the folder box stays out of the way; otherwise it's the first thing to fill in
+        box = st.expander("Replay folder", expanded=not found) if found else st.container()
+        with box:
+            typed = st.text_input(
+                "Path to a match folder, a .zip, or your whole MatchReplay folder",
+                value=str(found[0]) if found else "",
+                placeholder=r"C:\Program Files (x86)\Steam\steamapps\common\Tom Clancy's Rainbow Six Siege\MatchReplay",
+            ).strip().strip('"')
+            if found and typed == str(found[0]):
+                st.caption("Found your Siege replays folder automatically.")
         if typed:
             p = Path(typed).expanduser()
             if not p.exists():
                 st.error(f"Not found: {p}")
             else:
-                picked = (("path", str(p), replay_source_version(p)), lambda td, sc, c=p: collect_rec_files(c, td, sc))
+                state = folder_source(p)
     else:
         REPLAYS_DIR.mkdir(exist_ok=True)
         choices = sorted(
@@ -199,31 +143,34 @@ else:
             st.info(f"No matches in `{REPLAYS_DIR}` yet.")
         else:
             chosen = st.selectbox("Match", choices, format_func=lambda p: p.name + ("/" if p.is_dir() else ""))
-            picked = (("path", str(chosen), replay_source_version(chosen)), lambda td, sc, c=chosen: collect_rec_files(c, td, sc))
+            state = folder_source(chosen)
 
-    if picked is not None:
-        state = _load_source(*picked)
+    if state is not None:
         if state["skipped"]:
             st.warning(state["skipped"], icon="🛡️")
         if "error" in state:
             st.error(state["error"])
             st.stop()
-        names = list(state["groups"])
+        names = sorted(state["groups"], key=lambda n: match_time(n) or n, reverse=True)  # newest first
+        with open_stats_db() as db:
+            known = {r["source"]: r for r in db.match_list(db.me())}
+        opening = st.session_state.pop("open_match", None)  # "Open" on Match History
         if len(names) > 1:
-            name = st.selectbox(f"{len(names)} matches found", names, index=len(names) - 1)
+            name = st.selectbox(f"{len(names)} matches", names, format_func=lambda n: match_label(n, known.get(n)),
+                                index=names.index(opening) if opening in names else 0)
         else:
             name = names[0]
         if name not in state["parsed"]:
-            with st.spinner(f"Parsing {name}... long matches can take a minute."):
-                try:
-                    state["parsed"][name] = parse_match(state["groups"][name])
-                except ReplayParseError as e:
-                    state["parsed"][name] = e
+            with st.spinner("Reading the match... long matches can take a few seconds."):
+                parse(state, name)
         result = state["parsed"][name]
         if isinstance(result, ReplayParseError):
             st.error(f"{name}: {result}")
             st.stop()
         match, raw, parse_warnings = result
+        with open_stats_db() as db:  # every match looked at goes into the stats database
+            if db.needs_import({name: state["groups"][name]}):
+                db.import_match(name, match, files=len(state["groups"][name]))
         for w in parse_warnings:
             st.warning(w, icon="⚠️")
         with st.sidebar:
@@ -308,7 +255,7 @@ with st.expander("Season tracker", expanded=False):
         track_column, log_column = st.columns(2)
         if track_column.button("Track selected roster", disabled=not selected_players or is_public_host(), type="primary"):
             tracker.add_players(selected_players, team=tracked_team or None)
-            st.success(f"Tracking {len(selected_players)} players for {tracked_team}." if tracked_team else
+            st.success(f"Tracking {len(selected_players)} players for {md(tracked_team)}." if tracked_team else
                        f"Tracking {len(selected_players)} players, without a team name: enter one to group them as a team.")
         tracked = tracker.tracked_players()
         if log_column.button("Save this match", disabled=not tracked or is_public_host()):

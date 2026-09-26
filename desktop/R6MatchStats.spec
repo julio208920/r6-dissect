@@ -13,9 +13,10 @@ APP_VERSION = (STAMPED_VERSION.read_text().strip() if STAMPED_VERSION.is_file()
                else re.search(r'or "([\d.]+)"', (ROOT / "scripts" / "app_info.py").read_text()).group(1))
 
 # The app ships as plain files, because Streamlit runs app.py (and its pages) from disk.
-APP_FILES = ["app.py", "report.py", "history.py", "operators.py", "teams.py", "schools.py",
-             "download.py", "app_info.py", "ui.py", "branding.py", "appearance.py", "necc_data.py", "necc_season.json", "season_stats.py",
-             "parser.py", "file_guard.py", "metrics_engine.py", "roster.py", "sample_data.py", "icon.png"]
+APP_FILES = ["app.py", "report.py", "ask.py", "history.py", "operators.py", "teams.py", "schools.py",
+             "download.py", "app_info.py", "ui.py", "branding.py", "appearance.py", "necc_data.py",
+             "necc_season.json", "season_stats.py", "sources.py", "stats_db.py", "ask_engine.py",
+             "parser.py", "file_guard.py", "metrics_engine.py", "sample_data.py", "icon.png"]
 datas = [(str(ROOT / "scripts" / name), "scripts") for name in APP_FILES]
 for stamp in ("repo.txt", "version.txt"):
     if (ROOT / "build" / stamp).is_file():
@@ -31,8 +32,11 @@ hiddenimports = (
     + ["webview.platforms.winforms", "webview.platforms.edgechromium", "clr",
        "PIL.ImageGrab"]  # the launcher's smoke test screenshot
     # standard library modules the app files use, which PyInstaller can't see in plain files
-    + ["collections", "csv", "dataclasses", "html", "ipaddress", "json", "re", "shutil", "sqlite3",
-       "subprocess", "tempfile", "urllib.parse", "urllib.request", "zipfile"]
+    # (scripts/test_app.py checks this list against their imports)
+    + ["base64", "collections", "concurrent.futures", "contextlib", "csv", "dataclasses", "datetime", "difflib",
+       "html", "io", "ipaddress", "json", "logging", "os", "pathlib", "re", "shutil", "sqlite3", "subprocess",
+       "sys", "tempfile", "threading", "time", "typing", "unicodedata", "urllib.parse", "urllib.request",
+       "zipfile"]
 )
 
 # the Details tab of the exe's Properties, and the name Task Manager shows (Windows only)

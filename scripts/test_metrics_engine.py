@@ -250,6 +250,18 @@ class TestReplayFiles(unittest.TestCase):
                 collect_rec_files(fake, Path(td) / "out")
 
 
+class TestOperatorNames(unittest.TestCase):
+    def test_display_names(self):
+        self.assertEqual(replay_parser._operator_name({"operator": {"name": "SolidSnake"}}), "Solid Snake")
+        self.assertEqual(replay_parser._operator_name({"operator": {"name": "Jager"}}), "Jäger")
+        self.assertEqual(replay_parser._operator_name({"operator": {"name": "Ash"}}), "Ash")
+
+    def test_unknown_operator_uses_the_replays_role_name(self):
+        name = replay_parser._operator_name({"operator": {"name": "Operator(456757346397)"}, "roleName": "NOOR"})
+        self.assertEqual(name, "Noor")
+        self.assertEqual(replay_parser._operator_name({"operator": {"name": "Operator(1)"}}), "Operator(1)")
+
+
 # stands in for r6-dissect: Python runs this ".rec" file as a script, with r6-dissect's arguments
 PROBE = """import ctypes, json, sys
 out = sys.argv[sys.argv.index("-o") + 1]

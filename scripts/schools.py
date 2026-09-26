@@ -14,6 +14,7 @@ from app_info import is_public_host
 from branding import DEFAULT_THEME, apply_theme
 from season_stats import StatsManager, StatsError
 import sqlite3
+from ui import md
 
 
 st.caption("NECC / COLLEGIATE DIRECTORY")
@@ -116,7 +117,7 @@ with school_column:
         season = st.session_state.get("r6_season", "current")
         with StatsManager(season=season) as manager:
             manager.add_players(roster, team=team_name)
-        st.success(f"Added {len(roster)} players to {team_name} for {season}.")
+        st.success(f"Added {len(roster)} players to {md(team_name)} for {md(season)}.")
 with details_column:
     st.subheader("Roster")
     if roster:

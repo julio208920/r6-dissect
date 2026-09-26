@@ -16,3 +16,6 @@ gatherUsageStats = false
 [theme]
 # the app's own styling is dark; a light theme would draw dark text on it
 base = "dark"
+# the default school theme's color (scripts/branding.py) on sliders, toggles and selected options;
+# the Windows app sets the same
+primaryColor = "#52d5f2"
