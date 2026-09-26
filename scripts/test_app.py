@@ -59,6 +59,34 @@ class TestReportPage(unittest.TestCase):
         self.assertEqual([b.proto.label for b in buttons], ["⬇ CSV", "⬇ JSON", "⬇ TXT"])
         self.assertEqual([Path(b.proto.url).suffix for b in buttons], [".csv", ".json", ".txt"])
 
+    @staticmethod
+    def tracker(at: AppTest):
+        """The season tracker's roster team, team name and players widgets."""
+        name = next(t for t in at.text_input if str(t.key).startswith("r6_tracker_team_name"))
+        players = next(m for m in at.multiselect if str(m.key).startswith("r6_tracker_players"))
+        return at.selectbox(key="r6_tracker_team"), name, players
+
+    def test_season_tracker_follows_the_selected_team(self):
+        from sample_data import SAMPLE_MATCH
+
+        at = run_app(R6_HOSTED="1")
+        at.toggle[0].set_value(True).run()
+        team, name, players = self.tracker(at)
+        team.set_value(1).run()
+        team, name, players = self.tracker(at)
+        self.assertEqual(name.value, SAMPLE_MATCH["team_names"][1])  # not the other team's name
+        self.assertEqual(sorted(players.value), sorted(p["name"] for p in SAMPLE_MATCH["players"] if p["team"] == 1))
+
+    def test_season_tracker_never_offers_a_replays_generic_label_as_the_team(self):
+        from sample_data import SAMPLE_MATCH
+
+        generic = {**SAMPLE_MATCH, "team_names": ["YOUR TEAM", "ENEMY TEAM"]}
+        with mock.patch.object(replay_parser, "load_demo_match", return_value=generic):
+            at = run_app(R6_HOSTED="1")
+            at.toggle[0].set_value(True).run()
+        self.assertFalse(at.exception)
+        self.assertEqual(self.tracker(at)[1].value, "")  # asks for the real name instead
+
     def test_demo_match_renders_both_scoreboards(self):
         at = run_app(R6_HOSTED="1")
         at.toggle[0].set_value(True).run()

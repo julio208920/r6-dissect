@@ -127,6 +127,10 @@ _ANSI = re.compile(r"\x1b\[[0-9;]*m")  # r6-dissect's log output is colorized
 # a full match is ~6-14 MB per round; allow generous time per round file
 _SECONDS_PER_ROUND = 60
 
+# r6-dissect is a console program. Started from the Windows app, which has no console,
+# Windows would open (and close) a console window for every parse; this runs it hidden.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 
 def r6_dissect_available() -> bool:
     return R6_DISSECT_BIN is not None
@@ -147,16 +151,22 @@ def _run_r6_dissect(rec_path: Path, num_rounds: int = 1) -> dict[str, Any]:
         timeout = 60 + _SECONDS_PER_ROUND * num_rounds
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
+                cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=timeout, creationflags=_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
-            raise ReplayParseError(f"r6-dissect timed out after {timeout}s on {rec_path.name}.")
+            raise ReplayParseError(f"r6-dissect timed out after {timeout}s on {rec_path.name}.") from None
+        except OSError as e:  # e.g. the exe was deleted or quarantined by antivirus
+            raise ReplayParseError(f"Couldn't run r6-dissect ({R6_DISSECT_BIN}): {e}") from e
         if proc.returncode != 0:
             label = rec_path.name if rec_path.is_file() else "the match folder"
             raise ReplayParseError(f"r6-dissect failed on {label}: {_ANSI.sub('', proc.stderr).strip()}")
         if not out_path.exists():
             raise ReplayParseError("r6-dissect produced no output file.")
-        return json.loads(out_path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(out_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:  # ValueError: invalid JSON or text
+            raise ReplayParseError(f"r6-dissect's output couldn't be read: {e}") from e
 
 
 def _extract_name(field: Any, default: str = "") -> str:
@@ -243,9 +253,9 @@ def _normalize_round(rs: dict[str, Any], idx: int) -> dict[str, Any]:
         # who was actually in this round -- players leave/rejoin in long matches
         "players": [p["username"] for p in (rs.get("players") or []) if p.get("username")],
         "operators": {
-            p["username"]: _operator_name(p)
+            p["username"]: operator
             for p in (rs.get("players") or [])
-            if p.get("username") and _operator_name(p)
+            if p.get("username") and (operator := _operator_name(p))
         },
         "winner_team": winner_team,  # None if the replay doesn't record a winner
         "win_condition": win_condition,
@@ -475,6 +485,20 @@ def group_by_match(rec_paths: list[str]) -> dict[str, list[str]]:
             key = p.parent.name or p.stem
         groups[key].setdefault(p.name, rp)
     return {k: [v[name] for name in sorted(v)] for k, v in sorted(groups.items())}
+
+
+def replay_source_version(path: Path) -> tuple[float, float]:
+    """Changes whenever a replay is added under `path`, so a cached list of its matches can
+    be refreshed: its own modified time and, for a folder, that of its newest subfolder
+    (a new round in an existing match folder only changes that match's folder, not the
+    MatchReplay folder above it)."""
+    newest = 0.0
+    if path.is_dir():
+        for child in path.iterdir():
+            with contextlib.suppress(OSError):
+                if child.is_dir():
+                    newest = max(newest, child.stat().st_mtime)
+    return path.stat().st_mtime, newest
 
 
 _SIEGE_REPLAYS = Path("Tom Clancy's Rainbow Six Siege") / "MatchReplay"

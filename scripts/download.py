@@ -56,7 +56,7 @@ else:
     )
     version = f"version {release['version']} · " if isinstance(release, dict) else ""
     st.link_button("⬇ Download for Windows", installer_url, type="primary")
-    st.caption(f"{WINDOWS_INSTALLER} · {version}Windows 10 or 11 (64-bit) · about 60 MB · "
+    st.caption(f"{WINDOWS_INSTALLER} · {version}Windows 10 or 11 (64-bit) · about 65 MB · "
                f"[release notes]({notes_url})")
 
     st.subheader("Install")

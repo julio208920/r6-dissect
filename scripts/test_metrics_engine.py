@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -12,6 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 import file_guard
+import parser as replay_parser
 from metrics_engine import PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, rows_csv
 from parser import (
     ReplayParseError, _stage_match_folder, collect_rec_files, group_by_match, normalize_from_r6_dissect, save_uploads,
@@ -153,6 +157,22 @@ class TestReplayFiles(unittest.TestCase):
             self.assertEqual(list(groups), ["Match-A", "Match-B"])
             self.assertEqual([Path(p).name for p in groups["Match-B"]], ["Match-B-R01.rec", "Match-B-R02.rec"])
 
+    def test_source_version_changes_when_a_round_is_added_to_a_match(self):
+        import os
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            match = root / "Match-A"
+            match.mkdir()
+            (match / "Match-A-R01.rec").write_bytes(REC)
+            os.utime(match, (1_000_000, 1_000_000))
+            os.utime(root, (1_000_000, 1_000_000))
+            before = replay_parser.replay_source_version(root)
+            (match / "Match-A-R02.rec").write_bytes(REC)  # changes Match-A's time, not root's
+            self.assertEqual(root.stat().st_mtime, 1_000_000)
+            self.assertNotEqual(replay_parser.replay_source_version(root), before)
+            self.assertEqual(replay_parser.replay_source_version(match / "Match-A-R01.rec")[1], 0.0)
+
     def test_a_round_found_twice_is_kept_once(self):
         # a copy of a match folder left inside another match's folder
         top = ["MatchReplay/Match-B/Match-B-R01.rec", "MatchReplay/Match-B/Match-B-R02.rec"]
@@ -228,6 +248,53 @@ class TestReplayFiles(unittest.TestCase):
             fake.write_bytes(b"#!/bin/sh" + bytes(2000))  # a script renamed to .rec
             with self.assertRaisesRegex(ReplayParseError, "isn't a Siege replay"):
                 collect_rec_files(fake, Path(td) / "out")
+
+
+# stands in for r6-dissect: Python runs this ".rec" file as a script, with r6-dissect's arguments
+PROBE = """import ctypes, json, sys
+out = sys.argv[sys.argv.index("-o") + 1]
+BODY
+"""
+
+
+class TestRunningR6Dissect(unittest.TestCase):
+    def run_probe(self, body: str):
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td, "probe.rec")
+            probe.write_text(PROBE.replace("BODY", body))
+            with mock.patch.object(replay_parser, "R6_DISSECT_BIN", sys.executable):
+                return replay_parser._run_r6_dissect(probe)
+
+    @unittest.skipUnless(sys.platform == "win32", "console windows are a Windows thing")
+    def test_runs_without_a_console_window(self):
+        # The Windows app has no console, and a console program started from it gets a console
+        # window of its own unless told not to: one flashed up for every parse. pythonw.exe has
+        # no console either, so it runs the parser here, the way the app does.
+        pythonw = Path(sys.executable).with_name("pythonw.exe")
+        if not pythonw.is_file():
+            self.skipTest("no pythonw.exe next to this Python")
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td, "probe.rec")
+            probe.write_text(PROBE.replace("BODY", "json.dump({'window': bool(ctypes.windll.kernel32.GetConsoleWindow())}, open(out, 'w'))"))
+            result, runner = Path(td, "result.json"), Path(td, "runner.py")
+            runner.write_text("\n".join([
+                "import json, pathlib, sys",
+                f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})",
+                "import parser",
+                f"parser.R6_DISSECT_BIN = {sys.executable!r}",
+                f"json.dump(parser._run_r6_dissect(pathlib.Path({str(probe)!r})), open({str(result)!r}, 'w'))",
+            ]))
+            subprocess.run([str(pythonw), str(runner)], timeout=60, check=True)
+            self.assertEqual(json.loads(result.read_text()), {"window": False})
+
+    def test_unreadable_output_is_a_parse_error(self):
+        with self.assertRaises(ReplayParseError):
+            self.run_probe("open(out, 'w').write('not json')")
+
+    def test_a_missing_or_blocked_exe_is_a_parse_error(self):
+        with mock.patch.object(replay_parser, "R6_DISSECT_BIN", str(Path(tempfile.gettempdir(), "no-such-r6-dissect.exe"))):
+            with self.assertRaises(ReplayParseError):
+                replay_parser._run_r6_dissect(Path("x.rec"))
 
 
 class TestReplayScanner(unittest.TestCase):
