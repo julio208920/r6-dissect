@@ -55,5 +55,14 @@ class TestHideConsoleWindows(unittest.TestCase):
             self.assertEqual(json.loads(result.read_text()), {"window": False})
 
 
+class TestSmokeTest(unittest.TestCase):
+    def test_dashboard_is_recognized_however_the_theme_capitalizes_it(self):
+        # the text the window reported in the failed build for the school themes
+        themed = "RAINBOW SIX SIEGE / COLLEGIATE\nNECC / TEAM OPERATIONS\nDASHBOARD\n\nReplay source"
+        for text in (themed, "Dashboard", "Match Report"):
+            self.assertTrue(launcher.dashboard_is_rendered(text), text)
+        self.assertFalse(launcher.dashboard_is_rendered("R6 Match Stats is starting..."))
+
+
 if __name__ == "__main__":
     unittest.main()
