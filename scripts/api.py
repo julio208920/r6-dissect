@@ -6,17 +6,21 @@ import json
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from necc_data import MAX_CATALOG_BYTES, fetch_school_catalog, normalize_school_catalog
 from file_guard import ReplayScanner
 from parser import ReplayParseError, collect_rec_files, group_by_match, parse_match, r6_dissect_available, save_uploads
-from season_stats import DEFAULT_DB_PATH, StatsError, StatsManager
+from season_stats import DEFAULT_DB_PATH, GENERIC_TEAM_NAMES, StatsError, StatsManager
+
+PARALLEL_MATCHES = 4  # r6-dissect runs as its own process; each can use a few hundred MB
 
 
 app = FastAPI(title="R6 Match Intelligence API", version="1.0.0")
@@ -58,6 +62,26 @@ def _season_or_400(season: str) -> str:
     return season.strip()
 
 
+def _parse_source(collect) -> dict[str, Any]:
+    """Parse every match that collect(workdir, scanner) finds (a few at once, in order).
+    Blocking: call it from a sync route or through run_in_threadpool."""
+    scanner = ReplayScanner()
+    try:
+        with tempfile.TemporaryDirectory(prefix="r6-api-") as workdir:
+            groups = group_by_match(collect(Path(workdir), scanner))
+            if not groups:
+                raise HTTPException(status_code=400, detail=scanner.summary() or "No Siege replay files found.")
+            with ThreadPoolExecutor(max_workers=PARALLEL_MATCHES) as pool:
+                parsed = list(pool.map(parse_match, groups.values()))
+    except ReplayParseError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except OSError as error:
+        raise HTTPException(status_code=400, detail=f"Cannot read the replays: {error}") from error
+    matches = [{"name": name, "match": match, "match_json": json.dumps(match, ensure_ascii=False), "warnings": warnings}
+               for name, (match, _raw, warnings) in zip(groups, parsed)]
+    return {"matches": matches, "skipped": scanner.summary()}
+
+
 def _catalog_path() -> Path:
     return Path(DEFAULT_DB_PATH).parent / "necc_r6_catalog.json"
 
@@ -81,7 +105,8 @@ def season_summary(season: str) -> dict[str, Any]:
 
 @app.get("/api/v1/seasons/{season}/matches")
 def season_matches(season: str) -> dict[str, Any]:
-    with StatsManager(season=_season_or_400(season)) as manager:
+    season = _season_or_400(season)
+    with StatsManager(season=season) as manager:
         return {"season": season, "matches": manager.match_history()}
 
 
@@ -109,21 +134,8 @@ async def parse_replays(files: list[UploadFile] = File(...)) -> dict[str, Any]:
         if total_bytes > max_bytes:
             raise HTTPException(status_code=413, detail="Replay uploads are limited to 512 MB per request.")
         uploads.append(_MemoryUpload(upload.filename or "replay.rec", data))
-
-    scanner = ReplayScanner()
-    try:
-        with tempfile.TemporaryDirectory(prefix="r6-api-") as workdir:
-            paths = save_uploads(uploads, Path(workdir), scanner)
-            groups = group_by_match(paths)
-            if not groups:
-                raise HTTPException(status_code=400, detail=scanner.summary() or "No Siege replay files found.")
-            matches = []
-            for name, rec_paths in groups.items():
-                match, _raw, warnings = parse_match(rec_paths)
-                matches.append({"name": name, "match": match, "match_json": json.dumps(match, ensure_ascii=False), "warnings": warnings})
-    except ReplayParseError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    return {"matches": matches, "skipped": scanner.summary()}
+    # parsing takes seconds: run it off the event loop so other requests aren't blocked
+    return await run_in_threadpool(_parse_source, lambda workdir, scanner: save_uploads(uploads, workdir, scanner))
 
 
 @app.post("/api/v1/replays/parse-path")
@@ -131,33 +143,22 @@ def parse_replay_path(payload: ReplayPathRequest) -> dict[str, Any]:
     if not r6_dissect_available():
         raise HTTPException(status_code=503, detail="The r6-dissect replay parser is not available.")
     source = Path(payload.path).expanduser()
-    scanner = ReplayScanner()
-    try:
-        with tempfile.TemporaryDirectory(prefix="r6-api-path-") as workdir:
-            paths = collect_rec_files(source, Path(workdir), scanner)
-            groups = group_by_match(paths)
-            if not groups:
-                raise HTTPException(status_code=400, detail=scanner.summary() or "No Siege replay files found.")
-            matches = []
-            for name, rec_paths in groups.items():
-                match, _raw, warnings = parse_match(rec_paths)
-                matches.append({"name": name, "match": match, "match_json": json.dumps(match, ensure_ascii=False), "warnings": warnings})
-    except ReplayParseError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except OSError as error:
-        raise HTTPException(status_code=400, detail=f"Cannot read the requested replay path: {error}") from error
-    return {"matches": matches, "skipped": scanner.summary()}
+    return _parse_source(lambda workdir, scanner: collect_rec_files(source, workdir, scanner))
 
 
 @app.post("/api/v1/seasons/{season}/matches/log")
 def log_match(season: str, payload: MatchLogRequest) -> dict[str, Any]:
     with StatsManager(season=_season_or_400(season)) as manager:
         for team, players in payload.rosters.items():
-            manager.add_players(players, team=team)
+            # a replay's own labels ("YOUR TEAM", ...) would lump every opponent together
+            generic = team.strip().upper() in GENERIC_TEAM_NAMES
+            manager.add_players([p for p in players if p.strip()], team=None if generic else team.strip())
         try:
             result = manager.log_match(payload.match)
         except StatsError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        except (KeyError, TypeError, ValueError, AttributeError) as error:
+            raise HTTPException(status_code=400, detail=f"That isn't a parsed match: {error!r}") from error
         return {
             "match_id": result.match_id,
             "rounds_logged": result.rounds_logged,
@@ -178,7 +179,7 @@ def schools() -> dict[str, Any]:
     catalog = _catalog_path()
     if catalog.is_file():
         try:
-            return {"schools": normalize_school_catalog(json.loads(catalog.read_text())), "source": "imported"}
+            return {"schools": normalize_school_catalog(json.loads(catalog.read_text(encoding="utf-8"))), "source": "imported"}
         except (OSError, json.JSONDecodeError, ValueError) as error:
             raise HTTPException(status_code=500, detail=f"Saved school catalog is invalid: {error}") from error
     raise HTTPException(status_code=503, detail="No NECC feed configured and no school catalog imported.")

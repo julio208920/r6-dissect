@@ -12,6 +12,7 @@ client expects the local API at `http://127.0.0.1:8000/api/v1` by default. Start
 it from the repository root in a separate terminal:
 
 ```powershell
+python -m pip install -r scriptsequirements-api.txt
 $env:R6_DESKTOP = "1"
 python -m uvicorn api:app --app-dir scripts --host 127.0.0.1 --port 8000
 ```

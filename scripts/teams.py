@@ -91,7 +91,7 @@ with build_tab:
             table = [{"Player": r["Player"], "Matches": report.matches_played[by_name[r["Player"]]],
                       **{k: v for k, v in r.items() if k not in ("Team", "Player")}} for r in rows]
             st.subheader(f"{report.roster.team}: combined player stats")
-            st.dataframe(table, use_container_width=True, hide_index=True)
+            st.dataframe(table, hide_index=True)
             st.caption("Only stats from playing on this team count: a match where a player was on the other "
                        "side isn't included for them. EPS is the rounds-weighted average of their per-match EPS.")
             st.subheader("Matches")
@@ -100,7 +100,7 @@ with build_tab:
                 "Score": "{}-{}".format(rm.match["final_score"][rm.side], rm.match["final_score"][1 - rm.side]),
                 "Result": {True: "Win", False: "Loss", None: "Draw"}[rm.won],
                 "Players": ", ".join(rm.present),
-            } for rm in report.matches], use_container_width=True, hide_index=True)
+            } for rm in report.matches], hide_index=True)
             dl, track = st.columns([1, 2])
             dl.download_button("⬇ CSV", rows_csv(table).encode("utf-8"),
                                file_name=f"{report.roster.team}_team_stats.csv", mime="text/csv")
@@ -112,7 +112,8 @@ with build_tab:
 
 # ------------------------------------------------------------ season teams --
 with season_tab:
-    season = st.text_input("Season", value=st.session_state.get("r6_season", "current"), key="team_season")
+    season = st.text_input("Season", value=st.session_state.get("r6_season", "current"), key="team_season").strip() or "current"
+    st.session_state["r6_season"] = season
     with StatsManager(season=season) as manager:
         teams = [t for t in (manager.get_team_stats(n) for n in manager.teams()) if t]
         snapshot = manager.export_json()
@@ -140,7 +141,7 @@ with season_tab:
             "KOST": f"{player.kost_pct:.1f}%",
             "HS": f"{player.hs_pct:.1f}%",
             "Clutches": player.clutches_won,
-        } for player in team.member_stats], use_container_width=True, hide_index=True)
+        } for player in team.member_stats], hide_index=True)
         st.subheader("Season teams")
         st.dataframe([{
             "Team": t.team,
@@ -152,7 +153,7 @@ with season_tab:
             "K/D": round(t.kd, 2),
             "Entry +/-": t.entry_diff,
             "KOST": f"{t.kost_avg:.1f}%",
-        } for t in teams], use_container_width=True, hide_index=True)
+        } for t in teams], hide_index=True)
         st.caption("EPS is the rounds-weighted average of each player's per-match EPS. "
                    "Matches saved before EPS was recorded show —.")
         st.download_button(

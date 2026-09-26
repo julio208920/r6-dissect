@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 def render_tactical_scene(height: int = 210, accent_color: str = "#d49353") -> None:
@@ -145,8 +144,10 @@ render();
 </script>
 </body>
 </html>"""
-    components.html(
-      html_doc.replace("#d49353", accent_color).replace("0xd49353", accent_three),
-        height=height,
-        scrolling=False,
-    )
+    html_doc = html_doc.replace("#d49353", accent_color).replace("0xd49353", accent_three)
+    if hasattr(st, "iframe"):  # components.html is deprecated in newer Streamlit versions
+        st.iframe(html_doc, height=height)
+    else:
+        import streamlit.components.v1 as components
+
+        components.html(html_doc, height=height, scrolling=False)

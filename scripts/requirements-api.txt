@@ -1,0 +1,6 @@
+# the REST API (scripts/api.py) for the web and Unity clients; the Streamlit app and
+# the Windows app only need requirements.txt
+-r requirements.txt
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9  # replay uploads

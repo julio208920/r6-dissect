@@ -274,9 +274,12 @@ for team_idx, team_name in enumerate(team_names[:2]):
         st.markdown(scoreboard_html(team_name, won, team_rows), unsafe_allow_html=True)
 
 with st.expander("Season tracker", expanded=False):
+    # r6_season is plain state, not the widget's key: Streamlit drops a widget's state when
+    # another page is shown, and the other pages read the season from it
     tracker_season = st.text_input(
-        "Season", value=st.session_state.get("r6_season", "current"), key="r6_season"
+        "Season", value=st.session_state.get("r6_season", "current"), key="r6_season_input"
     ).strip() or "current"
+    st.session_state["r6_season"] = tracker_season
     available_teams = team_names[:2]
     selected_team = st.selectbox("Roster team", available_teams, key="r6_tracker_team")
     selected_team_index = available_teams.index(selected_team)

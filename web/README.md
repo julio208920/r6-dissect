@@ -7,6 +7,7 @@ Unity client.
 From the repository root, start the API and web client in separate terminals:
 
 ```bash
+pip install -r scripts/requirements-api.txt
 PYTHONPATH=scripts uvicorn api:app --app-dir scripts --host 127.0.0.1 --port 8000
 cd web
 npm install

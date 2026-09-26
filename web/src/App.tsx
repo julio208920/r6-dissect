@@ -138,7 +138,8 @@ function getOperatorRows(match: NormalizedMatch | null) {
       if (round.winner_team !== null && round.winner_team === teamByPlayer.get(player)) siteRow.wins += 1;
       row.sites.set(site, siteRow);
       for (const event of round.events || []) {
-        if (event.type === "kill" && event.actor === player) row.kills += 1;
+        const teamKill = event.target !== undefined && teamByPlayer.get(event.target) === teamByPlayer.get(player);
+        if (event.type === "kill" && event.actor === player && !teamKill) row.kills += 1;
         if (event.type === "death" && event.actor === player) row.deaths += 1;
       }
       byName.set(operator, row);
@@ -177,8 +178,8 @@ function TeamModule({ summary }: { summary: SeasonSummary | null }) {
   return <div className="module-view">
     <div className="module-heading"><div><p className="eyebrow">Squad intelligence</p><h2>Team Analytics</h2></div>{summary?.teams.length ? <label className="select-control"><UsersRound size={14} /><select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>{summary.teams.map((item) => <option key={item.team}>{item.team}</option>)}</select><ChevronDown size={14} /></label> : null}</div>
     {!team ? <EmptyState title="No saved team totals" detail="Import a roster and log a match to build team analytics." /> : <>
-      <div className="kpi-grid team-kpis"><Kpi label="K/D ratio" value={team.kd.toFixed(2)} hint="SEASON TOTAL" /><Kpi label="Entry differential" value={team.entry_diff > 0 ? `+${team.entry_diff}` : team.entry_diff} hint="OPENING DUELS" /><Kpi label="KOST average" value={`${team.kost_avg.toFixed(1)}%`} hint="ROSTER AVERAGE" /><Kpi label="Clutch success" value={team.clutch_success_rate === null ? "—" : `${Math.round(team.clutch_success_rate * 100)}%`} hint="1V1 TO 1V5" /></div>
-      <section className="surface-panel table-wrap"><div className="panel-heading"><div><p className="eyebrow">Roster metrics</p><h3>{team.team}</h3></div><span className="count-label">{team.players.length} PLAYERS</span></div><table><thead><tr><th>Player</th><th>Rounds</th><th>K/D</th><th>Entry +/-</th><th>KOST</th><th>HS</th><th>Clutches</th></tr></thead><tbody>{team.member_stats.map((player) => <tr key={player.username}><td>{player.username}</td><td>{player.totals.rounds_played}</td><td>{player.kd.toFixed(2)}</td><td>{player.entry_diff > 0 ? `+${player.entry_diff}` : player.entry_diff}</td><td>{player.kost_pct.toFixed(1)}%</td><td>{player.hs_pct.toFixed(1)}%</td><td>{player.clutches_won}</td></tr>)}</tbody></table></section>
+      <div className="kpi-grid team-kpis"><Kpi label="EPS" value={team.eps ?? "—"} hint="ROUNDS-WEIGHTED" /><Kpi label="K/D ratio" value={team.kd.toFixed(2)} hint="SEASON TOTAL" /><Kpi label="Entry differential" value={team.entry_diff > 0 ? `+${team.entry_diff}` : team.entry_diff} hint="OPENING DUELS" /><Kpi label="KOST average" value={`${team.kost_avg.toFixed(1)}%`} hint="ROSTER AVERAGE" /><Kpi label="Clutch success" value={team.clutch_success_rate === null ? "—" : `${Math.round(team.clutch_success_rate * 100)}%`} hint="1V1 TO 1V5" /></div>
+      <section className="surface-panel table-wrap"><div className="panel-heading"><div><p className="eyebrow">Roster metrics</p><h3>{team.team}</h3></div><span className="count-label">{team.players.length} PLAYERS</span></div><table><thead><tr><th>Player</th><th>EPS</th><th>Rounds</th><th>K/D</th><th>Entry +/-</th><th>KOST</th><th>HS</th><th>Clutches</th></tr></thead><tbody>{team.member_stats.map((player) => <tr key={player.username}><td>{player.username}</td><td>{player.eps ?? "—"}</td><td>{player.totals.rounds_played}</td><td>{player.kd.toFixed(2)}</td><td>{player.entry_diff > 0 ? `+${player.entry_diff}` : player.entry_diff}</td><td>{player.kost_pct.toFixed(1)}%</td><td>{player.hs_pct.toFixed(1)}%</td><td>{player.clutches_won}</td></tr>)}</tbody></table></section>
     </>}
   </div>;
 }
@@ -231,7 +232,7 @@ function exportJson(summary: SeasonSummary | null) {
   anchor.href = url;
   anchor.download = `${summary.season}_team_report.json`;
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // revoking at once can cancel the download
 }
 
 export default function App() {
@@ -326,7 +327,8 @@ export default function App() {
     try {
       const result = await api.importCatalog(file);
       setSchools(result.schools); setSchoolSource(result.source);
-      if (result.schools[0]) setBrand(result.schools[0].name, result.schools[0].primary_color || "#d49353");
+      const first = result.schools[0];
+      if (first) setBrand(first.name, /^#[\da-f]{6}$/i.test(first.primary_color || "") ? first.primary_color! : "#d49353");
     } catch (reason) {
       setSchoolError(reason instanceof Error ? reason.message : "Catalog import failed");
     } finally { setBusy(false); }

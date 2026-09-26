@@ -9,6 +9,7 @@ export interface PlayerSeason {
   entry_diff: number;
   hs_pct: number;
   clutches_won: number;
+  eps?: number | null; // null for matches saved before EPS was recorded
 }
 
 export interface TeamSeason {
@@ -19,6 +20,7 @@ export interface TeamSeason {
   entry_diff: number;
   clutch_success_rate: number | null;
   kost_avg: number;
+  eps?: number | null;
   member_stats: PlayerSeason[];
 }
 

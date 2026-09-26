@@ -331,7 +331,7 @@ namespace R6MatchIntelligence
             var y = -4f;
             foreach (var team in summary.teams)
             {
-                var line = team.team + "     " + (team.players == null ? 0 : team.players.Length) + " PLAYERS     K/D " + team.kd.ToString("0.00") + "     KOST " + team.kost_avg.ToString("0.0") + "%";
+                var line = team.team + "     " + (team.players == null ? 0 : team.players.Length) + " PLAYERS     EPS " + (team.eps > 0 ? team.eps.ToString() : "—") + "     K/D " + team.kd.ToString("0.00") + "     KOST " + team.kost_avg.ToString("0.0") + "%";
                 CreateText(_pageBody, line, new Vector2(0f, y), new Vector2(780f, 28f), 14, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
                 y -= 42f;
             }
@@ -532,6 +532,6 @@ namespace R6MatchIntelligence
         [Serializable] private sealed class SchoolTeamData { public string name; public string[] roster; }
         [Serializable] private sealed class SummaryEnvelope { public int rounds_logged; public PlayerSummary[] players; public TeamSummary[] teams; }
         [Serializable] private sealed class PlayerSummary { public string username; public float kd; public float kost_pct; }
-        [Serializable] private sealed class TeamSummary { public string team; public string[] players; public float kd; public float kost_avg; }
+        [Serializable] private sealed class TeamSummary { public string team; public string[] players; public float kd; public float kost_avg; public int eps; }
     }
 }
