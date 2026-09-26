@@ -9,35 +9,55 @@ import re
 
 import streamlit as st
 
-from necc_data import MAX_CATALOG_BYTES, fetch_school_catalog, normalize_school_catalog
+from necc_data import MAX_CATALOG_BYTES, bundled_school_catalog, fetch_school_catalog, normalize_school_catalog
 from app_info import is_public_host
-from season_stats import StatsManager
+from branding import DEFAULT_THEME, apply_theme
+from season_stats import StatsManager, StatsError
+import sqlite3
 
 
-st.title("School Selection")
-feed_configured = bool(os.environ.get("NECC_R6_DATA_URL"))
-feed_column, upload_column = st.columns([1, 2])
-with feed_column:
-    if st.button("Sync NECC feed", disabled=not feed_configured, type="primary"):
-        try:
-            st.session_state["necc_schools"] = fetch_school_catalog()
-            st.session_state["necc_catalog_source"] = "Configured NECC feed"
-            st.rerun()
-        except (OSError, ValueError) as error:
-            st.error(f"School feed unavailable: {error}")
-with upload_column:
-    uploaded_catalog = st.file_uploader("Import school catalog (.json)", type=["json"], key="necc_catalog_upload")
-    if uploaded_catalog:
-        try:
-            raw_catalog = uploaded_catalog.getvalue()
-            if len(raw_catalog) > MAX_CATALOG_BYTES:
-                raise ValueError("The school catalog exceeds the 2 MB limit.")
-            st.session_state["necc_schools"] = normalize_school_catalog(json.loads(raw_catalog))
-            st.session_state["necc_catalog_source"] = uploaded_catalog.name
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-            st.error(f"Could not import catalog: {error}")
+st.caption("NECC / COLLEGIATE DIRECTORY")
+st.title("Find your squad")
+if "necc_schools" not in st.session_state:
+    st.session_state["necc_schools"] = bundled_school_catalog()
+    st.session_state["necc_catalog_source"] = "LeagueOS · Rainbow Six Signups · September 26, 2026 snapshot"
+all_schools = st.session_state["necc_schools"]
+a, b, c = st.columns(3)
+a.metric("Schools", len(all_schools))
+b.metric("Teams", sum(len(school["teams"]) for school in all_schools))
+c.metric("NECC season", "2026")
+st.caption("Browse every registered team, select your school identity, then build your match-tracking roster.")
+st.link_button("View live NECC season", "https://necc.v1.leagueos.gg/league/seasons/2ek7kqsupq1csjr1f4ew1ya0i")
+with st.expander("Update or import a directory"):
+    feed_configured = bool(os.environ.get("NECC_R6_DATA_URL"))
+    feed_column, upload_column = st.columns([1, 2])
+    with feed_column:
+        if st.button("Sync NECC feed", disabled=not feed_configured, type="primary"):
+            try:
+                st.session_state["necc_schools"] = fetch_school_catalog()
+                st.session_state["necc_catalog_source"] = "Configured NECC feed"
+                st.rerun()
+            except (OSError, ValueError) as error:
+                st.error(f"School feed unavailable: {error}")
+    with upload_column:
+        uploaded_catalog = st.file_uploader("Import school catalog (.json)", type=["json"], key="necc_catalog_upload")
+        if uploaded_catalog:
+            try:
+                raw_catalog = uploaded_catalog.getvalue()
+                if len(raw_catalog) > MAX_CATALOG_BYTES:
+                    raise ValueError("The school catalog exceeds the 2 MB limit.")
+                st.session_state["necc_schools"] = normalize_school_catalog(json.loads(raw_catalog))
+                st.session_state["necc_catalog_source"] = uploaded_catalog.name
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                st.error(f"Could not import catalog: {error}")
 
 schools = st.session_state.get("necc_schools", [])
+query = st.text_input("Search school or team", placeholder="School, university, or team name").strip().casefold()
+if query:
+    schools = [school for school in schools if query in school["name"].casefold() or any(query in team["name"].casefold() for team in school["teams"])]
+    if not schools:
+        st.info("No teams match your search. Try another school or team name.")
+        st.stop()
 if not schools:
     if feed_configured:
         st.info("No catalog loaded. Sync the configured HTTPS feed or import a school JSON export.")
@@ -57,7 +77,7 @@ st.session_state["selected_school_name"] = selected_school["name"]
 primary_color = selected_school.get("primary_color") or "#d49353"
 if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(primary_color)):
     primary_color = "#d49353"
-st.session_state["selected_school_color"] = primary_color
+
 
 teams = selected_school.get("teams", [])
 if not teams:
@@ -67,10 +87,19 @@ selected_team = st.selectbox("Rainbow Six team", teams, format_func=lambda team:
 team_name = selected_team["name"]
 st.session_state["selected_school_team"] = team_name
 roster = selected_team.get("roster", [])
+if st.button("Use this team's colors and logo", type="primary"):
+    try:
+        apply_theme(dict(name=selected_school["name"], team=team_name,
+            primary=selected_team.get("primary_color") or primary_color,
+            secondary=DEFAULT_THEME["secondary"], logo=selected_team.get("logo_url") or selected_school.get("logo_url") or ""))
+        st.rerun()
+    except OSError as error:
+        st.error(f"Could not save appearance: {error}")
+st.page_link("appearance.py", label="Customize colors and upload your logo", icon=":material/palette:")
 
 school_column, details_column = st.columns([1, 2])
 with school_column:
-    logo_url = selected_school.get("logo_url")
+    logo_url = selected_team.get("logo_url") or selected_school.get("logo_url")
     if isinstance(logo_url, str) and logo_url.startswith(("https://", "http://")):
         st.image(logo_url, width=104)
     st.markdown(
@@ -93,7 +122,23 @@ with details_column:
     if roster:
         st.dataframe([{"Player": name} for name in roster], hide_index=True)
     else:
-        st.info("Roster data is not included for this team.")
+        st.info("This snapshot includes team registrations. Add verified Siege usernames below to track replay statistics; LeagueOS display names may differ.")
+        with st.form("school_tracking"):
+            usernames = st.text_area("Siege usernames to track", placeholder="One exact in-game username per line")
+            save_roster = st.form_submit_button("Save team roster", disabled=is_public_host())
+        if save_roster:
+            names = list(dict.fromkeys(name.strip() for name in usernames.splitlines() if name.strip()))
+            if not names:
+                st.warning("Enter at least one Siege username.")
+            else:
+                try:
+                    with StatsManager(season=st.session_state.get("r6_season", "current")) as manager:
+                        manager.add_players(names, team=f"{selected_school['name']} / {team_name}")
+                    st.success(f"Saved {len(names)} players. Their matching replay statistics can now be tracked.")
+                except (OSError, ValueError, StatsError, sqlite3.Error) as error:
+                    st.error(f"Could not save roster: {error}")
+    if selected_team.get("division"):
+        st.caption(f"Placement group: {selected_team['division']}")
 
     standings = selected_team.get("standings")
     if standings:

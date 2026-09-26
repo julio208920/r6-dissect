@@ -15,7 +15,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from necc_data import MAX_CATALOG_BYTES, fetch_school_catalog, normalize_school_catalog
+from necc_data import MAX_CATALOG_BYTES, bundled_school_catalog, fetch_school_catalog, normalize_school_catalog
 from file_guard import ReplayScanner
 from parser import ReplayParseError, collect_rec_files, group_by_match, parse_match, r6_dissect_available, save_uploads
 from season_stats import DEFAULT_DB_PATH, GENERIC_TEAM_NAMES, StatsError, StatsManager
@@ -182,7 +182,7 @@ def schools() -> dict[str, Any]:
             return {"schools": normalize_school_catalog(json.loads(catalog.read_text(encoding="utf-8"))), "source": "imported"}
         except (OSError, json.JSONDecodeError, ValueError) as error:
             raise HTTPException(status_code=500, detail=f"Saved school catalog is invalid: {error}") from error
-    raise HTTPException(status_code=503, detail="No NECC feed configured and no school catalog imported.")
+    return {"schools": bundled_school_catalog(), "source": "NECC LeagueOS · September 26, 2026 snapshot"}
 
 
 @app.post("/api/v1/schools/catalog")

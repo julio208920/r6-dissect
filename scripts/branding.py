@@ -1,0 +1,140 @@
+"""Validated school identity, with atomic desktop preference persistence."""
+from __future__ import annotations
+
+import base64
+import html
+import io
+import json
+import os
+import re
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
+
+from PIL import Image
+import streamlit as st
+from app_info import is_public_host, is_loopback
+from season_stats import DEFAULT_DB_PATH
+
+DEFAULT_THEME = dict(name='Siege / NECC', team='', primary='#52d5f2', secondary='#f6be4f', logo='')
+
+
+def clean_theme(value):
+    value = value if isinstance(value, dict) else {}
+    result = {key: str(value.get(key, default))[:180] for key, default in DEFAULT_THEME.items() if key != 'logo'}
+    for key in ('primary', 'secondary'):
+        if not re.fullmatch(r'#[0-9a-fA-F]{6}', result[key]):
+            result[key] = DEFAULT_THEME[key]
+    logo = str(value.get('logo', ''))
+    if urlparse(logo).scheme == 'https' and urlparse(logo).netloc:
+        result['logo'] = logo[:2048]
+    elif logo.startswith('data:image/png;base64,') and len(logo) < 3_000_000:
+        try:
+            raw = base64.b64decode(logo.split(',', 1)[1], validate=True)
+            with Image.open(io.BytesIO(raw)) as image:
+                if image.format != 'PNG' or max(image.size) > 1024:
+                    raise ValueError('Invalid logo')
+                image.verify()
+            result['logo'] = logo
+        except (ValueError, OSError):
+            result['logo'] = ''
+    else:
+        result['logo'] = ''
+    return result
+
+
+def preference_path():
+    return Path(DEFAULT_DB_PATH).parent / 'appearance.json'
+
+
+def load_theme(path=None):
+    try:
+        return clean_theme(json.loads((path or preference_path()).read_text(encoding='utf-8')))
+    except (OSError, ValueError):
+        return dict(DEFAULT_THEME)
+
+
+def save_theme(value, path=None):
+    path = path or preference_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as file:
+            json.dump(clean_theme(value), file, ensure_ascii=False)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def local_preferences():
+    return not is_public_host() and is_loopback(st.context.ip_address)
+
+
+def current_theme():
+    if 'appearance' not in st.session_state:
+        st.session_state['appearance'] = load_theme() if local_preferences() else dict(DEFAULT_THEME)
+    return clean_theme(st.session_state['appearance'])
+
+
+def apply_theme(value):
+    value = clean_theme(value)
+    if local_preferences():
+        save_theme(value)
+    st.session_state['appearance'] = value
+    st.session_state['selected_school_name'] = value['name']
+    st.session_state['selected_school_color'] = value['primary']
+    st.session_state['selected_school_team'] = value['team']
+
+
+def uploaded_logo(raw):
+    if len(raw) > 2 * 1024 * 1024:
+        raise ValueError('Choose an image smaller than 2 MB.')
+    with Image.open(io.BytesIO(raw)) as image:
+        if image.format not in ('PNG', 'JPEG', 'WEBP') or max(image.size) > 4096:
+            raise ValueError('Use a PNG, JPEG or WebP image up to 4096 pixels.')
+        image = image.convert('RGBA')
+        image.thumbnail((512, 512))
+        output = io.BytesIO()
+        image.save(output, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode('ascii')
+
+
+def readable_accent(color):
+    channels = [int(color[n:n+2], 16) for n in (1, 3, 5)]
+    # Keep the exact school color on decoration; lighten only text for dark surfaces.
+    return '#' + ''.join(f'{max(c, 145):02x}' for c in channels)
+
+
+def render_identity():
+    theme = current_theme()
+    accent = readable_accent(theme['primary'])
+    st.markdown(f'''<style>
+    :root {{ --accent:{accent}; --school:{theme['primary']}; --secondary:{theme['secondary']};
+      --bg:#080e19; --panel:#101d2c; --row:#152437; --border:#293b51; --text:#f2f6fb; --dim:#a8b8ca; }}
+    .stApp {{background:radial-gradient(ellipse at 95% 0%,{theme['primary']}30,transparent 45%),#080e19;}}
+    header[data-testid="stHeader"] {{background:#080e19e8;}}
+    section[data-testid="stSidebar"] {{background:#101a2a;}}
+    h1,h2,h3 {{text-transform:uppercase;letter-spacing:.035em!important;}}
+    h1 {{font-size:2.8rem!important;}}
+    [data-testid="stMetric"] {{background:linear-gradient(125deg,#17283b,#0c1624);border:1px solid #293b51;border-top:3px solid var(--school);border-radius:3px;}}
+    [data-testid="stMetricValue"] {{color:var(--accent);font-size:clamp(20px,2.4vw,32px);}}
+    [data-testid="stTabs"] button[aria-selected="true"] {{color:var(--accent);}}
+    button[kind="primary"],button[kind="primary"]:hover {{background:var(--accent);border-color:var(--accent);color:#080e19;}}
+    .scorecard {{background:linear-gradient(115deg,#182a3f,#0d1725);border-left:4px solid var(--school);}}
+    table.pl th {{background:#101d2c;color:#b3c4d7;}} table.pl td {{border-color:#293b51;}}
+    table.pl tr:nth-child(even) td {{background:#152437;}}
+    .identity-banner {{display:flex;align-items:center;gap:20px;border:1px solid #293b51;border-left:5px solid var(--school);padding:25px 30px;background:linear-gradient(115deg,#14263bee,#0b1422);margin:12px 0 24px;position:relative;overflow:hidden;}}
+    .identity-banner:after {{content:'';position:absolute;right:30px;top:-30px;width:70px;height:230px;transform:rotate(25deg);background:var(--school);opacity:.15;}}
+    .identity-banner img {{width:64px;height:64px;object-fit:contain;}}
+    .identity-kicker {{color:var(--accent);font:700 11px monospace;letter-spacing:.2em;}}
+    .identity-name {{font:700 clamp(22px,3vw,38px) 'Barlow Condensed','Arial Narrow',sans-serif;color:#f2f6fb;line-height:1.1;margin:7px 0;}}
+    .identity-sub {{color:#a8b8ca;font-size:13px;}}
+    .identity-badge {{margin-left:auto;border:1px solid var(--secondary);color:var(--secondary);padding:8px 12px;font:700 11px monospace;white-space:nowrap;}}
+    @media(max-width:700px) {{.identity-banner {{padding:18px 14px;gap:12px;}}.identity-badge {{display:none;}}h1 {{font-size:2rem!important;}}}}
+    </style>''', unsafe_allow_html=True)
+    logo = f'<img src="{html.escape(theme["logo"], quote=True)}" alt="School logo">' if theme['logo'] else ''
+    st.markdown(f'''<div class="identity-banner">{logo}<div><div class="identity-kicker">RAINBOW SIX SIEGE / COLLEGIATE</div>
+    <div class="identity-name">{html.escape(theme['name'])}</div>
+    <div class="identity-sub">{html.escape(theme['team'] or 'Match intelligence · Roster operations · Season performance')}</div></div>
+    <div class="identity-badge">NECC / TEAM OPERATIONS</div></div>''', unsafe_allow_html=True)
