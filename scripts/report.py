@@ -26,9 +26,9 @@ from metrics_engine import (
 )
 from parser import (
     ReplayParseError, collect_rec_files, find_replay_folders, group_by_match, load_demo_match,
-    parse_match, r6_dissect_available, raw_shape_preview, save_uploads,
+    parse_match, r6_dissect_available, raw_shape_preview, replay_source_version, save_uploads,
 )
-from season_stats import StatsManager
+from season_stats import GENERIC_TEAM_NAMES, StatsManager
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REPLAYS_DIR = REPO_ROOT / "replays"
@@ -186,7 +186,7 @@ else:
             if not p.exists():
                 st.error(f"Not found: {p}")
             else:
-                picked = (("path", str(p), p.stat().st_mtime), lambda td, sc, c=p: collect_rec_files(c, td, sc))
+                picked = (("path", str(p), replay_source_version(p)), lambda td, sc, c=p: collect_rec_files(c, td, sc))
     else:
         REPLAYS_DIR.mkdir(exist_ok=True)
         choices = sorted(
@@ -199,7 +199,7 @@ else:
             st.info(f"No matches in `{REPLAYS_DIR}` yet.")
         else:
             chosen = st.selectbox("Match", choices, format_func=lambda p: p.name + ("/" if p.is_dir() else ""))
-            picked = (("path", str(chosen), chosen.stat().st_mtime), lambda td, sc, c=chosen: collect_rec_files(c, td, sc))
+            picked = (("path", str(chosen), replay_source_version(chosen)), lambda td, sc, c=chosen: collect_rec_files(c, td, sc))
 
     if picked is not None:
         state = _load_source(*picked)
@@ -281,23 +281,35 @@ with st.expander("Season tracker", expanded=False):
     ).strip() or "current"
     st.session_state["r6_season"] = tracker_season
     available_teams = team_names[:2]
-    selected_team = st.selectbox("Roster team", available_teams, key="r6_tracker_team")
-    selected_team_index = available_teams.index(selected_team)
+    selected_team_index = st.selectbox("Roster team", range(len(available_teams)),
+                                       format_func=lambda i: available_teams[i], key="r6_tracker_team")
+    selected_team = available_teams[selected_team_index]
     player_names = [
         player["name"] for player in match.get("players", [])
         if player.get("team") == selected_team_index
     ]
+    # keyed by match and team, so switching either starts from that team's players and name
+    # (with fixed keys, the name box kept the other team's name and the list came up empty)
+    roster_key = f"{match['match_id']}:{selected_team_index}"
     selected_players = st.multiselect(
-        "Players to track", player_names, default=player_names, key="r6_tracker_players"
+        "Players to track", player_names, default=player_names, key=f"r6_tracker_players:{roster_key}"
     )
-    tracked_team = st.text_input("Team or school name", value=selected_team, key="r6_tracker_team_name").strip()
+    generic = selected_team.strip().upper() in GENERIC_TEAM_NAMES
+    tracked_team = st.text_input(
+        "Team or school name", value="" if generic else selected_team, key=f"r6_tracker_team_name:{roster_key}",
+        placeholder="e.g. Varsity" if generic else None,
+        help=f'The replay only calls this team "{selected_team}", so enter its real name.' if generic else None,
+    ).strip()
+    if tracked_team.upper() in GENERIC_TEAM_NAMES:
+        tracked_team = ""  # never save a replay's generic label as a team: it'd lump opponents together
     if is_public_host():
         st.info("Season tracking is disabled on shared public hosting to keep visitors' stats separate. Use the Windows app or a private local deployment.")
     with StatsManager(season=tracker_season) as tracker:
         track_column, log_column = st.columns(2)
         if track_column.button("Track selected roster", disabled=not selected_players or is_public_host(), type="primary"):
-            tracker.add_players(selected_players, team=tracked_team or selected_team)
-            st.success(f"Tracking {len(selected_players)} players for {tracked_team or selected_team}.")
+            tracker.add_players(selected_players, team=tracked_team or None)
+            st.success(f"Tracking {len(selected_players)} players for {tracked_team}." if tracked_team else
+                       f"Tracking {len(selected_players)} players, without a team name: enter one to group them as a team.")
         tracked = tracker.tracked_players()
         if log_column.button("Save this match", disabled=not tracked or is_public_host()):
             result = tracker.log_match(match)

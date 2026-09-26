@@ -3,7 +3,9 @@ loaded replays, and the saved season team totals."""
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 
 import streamlit as st
 
@@ -47,6 +49,8 @@ with build_tab:
         st.info("First load your replays on **Dashboard**: your whole MatchReplay folder, or a zip of "
                 "several matches. This page uses the matches loaded there.")
     else:
+        with contextlib.suppress(OSError, KeyError):
+            os.utime(source["workdir"])  # in use: keep Dashboard's hourly cleanup from deleting uploads
         groups = source["groups"]
         firsts = source.setdefault("players", {})  # match name -> {username: team}, from its first round
         parsed = source.setdefault("parsed", {})    # shared with Dashboard
