@@ -27,8 +27,10 @@ See [scripts/README.md](scripts/README.md) for details, including how to
 publish the website (Streamlit Community Cloud) and the Windows app (GitHub
 Releases).
 
-The dashboard includes a lightweight Three.js tactical scene, match history,
-operator and team analytics, and an opt-in season tracker. School rosters can be
+Every match it reads also goes into a local stats database, so the app adds
+match history, operator and team analytics (build a team from the players you
+queue with), plain-English questions about your trends ("What's my best
+map?"), and an opt-in season tracker. School rosters can be
 loaded from an authorized NECC JSON feed or imported catalog; see the dashboard
 documentation for the supported format and configuration.
 

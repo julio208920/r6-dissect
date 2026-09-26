@@ -12,6 +12,7 @@ import streamlit as st
 from necc_data import MAX_CATALOG_BYTES, fetch_school_catalog, normalize_school_catalog
 from app_info import is_public_host
 from season_stats import StatsManager
+from ui import md
 
 
 st.title("School Selection")
@@ -87,7 +88,7 @@ with school_column:
         season = st.session_state.get("r6_season", "current")
         with StatsManager(season=season) as manager:
             manager.add_players(roster, team=team_name)
-        st.success(f"Added {len(roster)} players to {team_name} for {season}.")
+        st.success(f"Added {len(roster)} players to {md(team_name)} for {md(season)}.")
 with details_column:
     st.subheader("Roster")
     if roster:

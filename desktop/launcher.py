@@ -99,6 +99,7 @@ def serve(port: int, parent_pid: int) -> int:
         "--browser.gatherUsageStats=false",
         "--client.toolbarMode=minimal",  # no Streamlit developer menu (Deploy, Rerun, ...)
         "--theme.base=dark",
+        "--theme.primaryColor=#d49353",  # the app's accent on sliders, toggles, selected options
     ]
     return stcli.main()
 

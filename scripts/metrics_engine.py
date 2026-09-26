@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import csv
 import io
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 
 TRADE_WINDOW_SECONDS = 10.0
 
@@ -311,26 +311,6 @@ def compute_match_metrics(match: dict) -> dict[str, PlayerStats]:
     return stats
 
 
-_SUMMED_FIELDS = tuple(f.name for f in fields(PlayerStats) if f.type == "int" and f.name != "team")
-
-
-def combine_player_stats(name: str, per_match: list[PlayerStats], team: int = 0) -> PlayerStats:
-    """One player's stats across several matches: counts are added up, so every
-    percentage and per-round stat is recomputed over all the rounds. EPS is
-    relative to the other players in each match, so it's the rounds-weighted
-    average of the player's per-match EPS."""
-    total = PlayerStats(name=name, team=team)
-    for s in per_match:
-        for f in _SUMMED_FIELDS:
-            setattr(total, f, getattr(total, f) + getattr(s, f))
-        for size, n in s.clutches.items():
-            total.clutches[size] = total.clutches.get(size, 0) + n
-        total.round_breakdown += s.round_breakdown
-    rated = sum(s.rounds_played for s in per_match)
-    total.rating = sum(s.rating * s.rounds_played for s in per_match) / rated if rated else 1.0
-    return total
-
-
 def _diff(a: int, b: int) -> str:
     d = a - b
     return f"{a}-{b} ({'+' if d > 0 else ''}{d})"
@@ -341,28 +321,37 @@ def _num(x: float) -> str:
     return f"{x:.2f}".rstrip("0").rstrip(".")
 
 
+def pro_league_row(*, team: int, player: str, eps: int, kills: int, deaths: int, entry_kills: int,
+                   entry_deaths: int, kost_pct: float, kpr: float, hs_pct: float, srv_pct: float, clutches: int,
+                   multikills: int, objectives: int, traded: int, trade_kills: int) -> dict:
+    """One player's row in the R6 Esports match-page layout (the 12 columns, formatted)."""
+    return {
+        "Team": team,
+        "Player": player,
+        "EPS": eps,
+        "KD (+/-)": _diff(kills, deaths),
+        "Entry": _diff(entry_kills, entry_deaths),
+        "KOST": f"{kost_pct:.0f}%",
+        "KPR": _num(kpr),
+        "HS": f"{hs_pct:.0f}%",
+        "SRV": f"{srv_pct:.0f}%",
+        "Clutches": clutches,
+        "Multikills": multikills,
+        "Objectives": objectives,
+        "Dead for trade kill": traded,
+        "Trade kills": trade_kills,
+    }
+
+
 def pro_league_rows(stats: dict[str, PlayerStats]) -> list[dict]:
     """One display row per player, in the R6 Esports match-page layout,
     sorted by team then EPS (desc)."""
-    rows = []
-    for s in sorted(stats.values(), key=lambda s: (s.team, -s.rating, s.name.lower())):
-        rows.append({
-            "Team": s.team,
-            "Player": s.name,
-            "EPS": s.eps,
-            "KD (+/-)": _diff(s.kills, s.deaths),
-            "Entry": _diff(s.entry_kills, s.entry_deaths),
-            "KOST": f"{s.kost_pct:.0f}%",
-            "KPR": _num(s.kpr),
-            "HS": f"{s.hs_pct:.0f}%",
-            "SRV": f"{s.srv_pct:.0f}%",
-            "Clutches": s.total_clutches,
-            "Multikills": s.multikill_rounds,
-            "Objectives": s.objectives,
-            "Dead for trade kill": s.trades,
-            "Trade kills": s.trade_kills,
-        })
-    return rows
+    return [pro_league_row(
+        team=s.team, player=s.name, eps=s.eps, kills=s.kills, deaths=s.deaths, entry_kills=s.entry_kills,
+        entry_deaths=s.entry_deaths, kost_pct=s.kost_pct, kpr=s.kpr, hs_pct=s.hs_pct, srv_pct=s.srv_pct,
+        clutches=s.total_clutches, multikills=s.multikill_rounds, objectives=s.objectives, traded=s.trades,
+        trade_kills=s.trade_kills,
+    ) for s in sorted(stats.values(), key=lambda s: (s.team, -s.rating, s.name.lower()))]
 
 
 def scoreboard_text(match: dict, rows: list[dict]) -> str:

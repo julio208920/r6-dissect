@@ -1,4 +1,5 @@
-"""Operator performance for the latest replay loaded in this session."""
+"""Operator Analytics: how each operator does, over all of a player's matches (from the stats
+database) or in the match open on the Dashboard."""
 
 from __future__ import annotations
 
@@ -6,66 +7,112 @@ from collections import defaultdict
 
 import streamlit as st
 
+from ask_engine import operator_table
 from metrics_engine import compute_match_metrics
+from sources import current_source, match_time, open_stats_db, parse, sync_with_progress
+from ui import md
+
+ALL, THIS = "All matches", "This match"
+
+
+def this_match(match: dict) -> None:
+    """Every operator played in one match: picks, round wins, and K/D as the scoreboard counts it."""
+    team_by_player = {player["name"]: player["team"] for player in match.get("players", [])}
+    # a replay without each round's picks still shows who played one operator all match (as stats_db does)
+    only_operator = {p["name"]: p["operator_history"][0] for p in match.get("players", [])
+                     if len(p.get("operator_history") or []) == 1}
+    # kills and deaths per (player, round), counted exactly as on the scoreboard (no team kills)
+    round_stats = {(name, rb.round_num): rb for name, s in compute_match_metrics(match).items()
+                   for rb in s.round_breakdown}
+    records: dict[str, dict] = defaultdict(lambda: {
+        "picks": 0, "round_wins": 0, "kills": 0, "deaths": 0, "sites": defaultdict(lambda: [0, 0]),
+    })
+    total_picks = 0
+    for round_data in match.get("rounds", []):
+        in_round = round_data.get("players") or team_by_player
+        operators = round_data.get("operators") or {n: op for n, op in only_operator.items() if n in in_round}
+        site = round_data.get("site") or "Unknown site"
+        for username, operator_name in operators.items():
+            if not operator_name:
+                continue
+            row = records[operator_name]
+            row["picks"] += 1
+            total_picks += 1
+            row["sites"][site][0] += 1
+            if round_data.get("winner_team") == team_by_player.get(username):
+                row["round_wins"] += 1
+                row["sites"][site][1] += 1
+            rb = round_stats.get((username, round_data.get("round_num")))
+            if rb is not None:
+                row["kills"] += rb.kills
+                row["deaths"] += rb.deaths
+    if not records:
+        st.info("This replay doesn't include operator selections. Try a recent match replay.")
+        return
+    rows, site_rows = [], []
+    for name, record in sorted(records.items(), key=lambda item: (-item[1]["picks"], item[0])):
+        rows.append({
+            "Operator": name,
+            "Picks": record["picks"],
+            "Pick rate": f"{record['picks'] / total_picks:.0%}" if total_picks else "0%",
+            "Round win rate": f"{record['round_wins'] / record['picks']:.0%}",
+            "Kills / Deaths": f"{record['kills']} / {record['deaths']}",
+            "K/D": round(record["kills"] / record["deaths"], 2) if record["deaths"] else record["kills"],
+        })
+        for site, (picks, wins) in sorted(record["sites"].items()):
+            site_rows.append({"Operator": name, "Site": site, "Rounds": picks, "Wins": wins,
+                              "Win rate": f"{wins / picks:.0%}" if picks else "0%"})
+    st.caption(f"{match.get('map', 'Current match')} · {len(match.get('rounds', []))} rounds · every player")
+    st.dataframe(rows, hide_index=True)
+    st.subheader("Site performance")
+    st.dataframe(site_rows, hide_index=True)
+
+
+def open_match() -> tuple[dict | None, bool]:
+    """The match open on the Dashboard or, before one has been opened, the newest one; and
+    whether it's that newest one."""
+    match = st.session_state.get("r6_last_match")
+    if match:
+        return match, False
+    source = current_source()
+    if not source or "error" in source or not source.get("groups"):
+        return None, False
+    newest = max(source["groups"], key=lambda n: match_time(n) or n)
+    with st.spinner("Reading the match..."):
+        parsed = parse(source, newest)
+    return (None, False) if isinstance(parsed, Exception) else (parsed[0], True)
 
 
 st.title("Operator Analytics")
-match = st.session_state.get("r6_last_match")
-if not match:
-    st.info("Load a replay on Dashboard to see operator performance.")
-    st.stop()
+view = st.segmented_control("Show", [ALL, THIS], default=ALL, label_visibility="collapsed") or ALL
 
-team_by_player = {player["name"]: player["team"] for player in match.get("players", [])}
-# kills and deaths per (player, round), counted exactly as on the scoreboard (no team kills)
-round_stats = {(name, rb.round_num): rb for name, s in compute_match_metrics(match).items() for rb in s.round_breakdown}
-records: dict[str, dict] = defaultdict(lambda: {
-    "picks": 0, "round_wins": 0, "kills": 0, "deaths": 0, "sites": defaultdict(lambda: [0, 0]),
-})
-total_picks = 0
-
-for round_data in match.get("rounds", []):
-    operators = dict(round_data.get("operators", {}))
-    if not operators:
-        for player in match.get("players", []):
-            history = player.get("operator_history", [])
-            if len(history) == 1 and player["name"] in round_data.get("players", []):
-                operators[player["name"]] = history[0]
-    site = round_data.get("site") or "Unknown site"
-    for username, operator_name in operators.items():
-        if not operator_name:
-            continue
-        row = records[operator_name]
-        row["picks"] += 1
-        total_picks += 1
-        row["sites"][site][0] += 1
-        if round_data.get("winner_team") == team_by_player.get(username):
-            row["round_wins"] += 1
-            row["sites"][site][1] += 1
-        rb = round_stats.get((username, round_data.get("round_num")))
-        if rb is not None:
-            row["kills"] += rb.kills
-            row["deaths"] += rb.deaths
-
-if not records:
-    st.info("This replay does not include operator selections. Try a recent match replay.")
-    st.stop()
-
-rows = []
-site_rows = []
-for name, record in sorted(records.items(), key=lambda item: (-item[1]["picks"], item[0])):
-    rows.append({
-        "Operator": name,
-        "Picks": record["picks"],
-        "Pick rate": f"{record['picks'] / total_picks:.0%}" if total_picks else "0%",
-        "Round win rate": f"{record['round_wins'] / record['picks']:.0%}",
-        "Kills / Deaths": f"{record['kills']} / {record['deaths']}",
-        "K/D": round(record["kills"] / record["deaths"], 2) if record["deaths"] else record["kills"],
-    })
-    for site, (picks, wins) in sorted(record["sites"].items()):
-        site_rows.append({"Operator": name, "Site": site, "Rounds": picks, "Wins": wins,
-                          "Win rate": f"{wins / picks:.0%}" if picks else "0%"})
-
-st.caption(f"{match.get('map', 'Current match')} · {len(match.get('rounds', []))} rounds · current session")
-st.dataframe(rows, hide_index=True)
-st.subheader("Site performance")
-st.dataframe(site_rows, hide_index=True)
+if view == THIS:
+    match, newest = open_match()
+    if not match:
+        st.info("No matches yet. Open your replays on **Dashboard** (or upload them there) first.")
+    else:
+        if newest:
+            st.caption("Your newest match. To see another one, pick it on the **Dashboard**.")
+        this_match(match)
+else:
+    with open_stats_db() as db:
+        source = current_source()
+        if source and "error" not in source:
+            sync_with_progress(db, source)
+        players = db.players()
+        me = db.me()
+        if not players:
+            st.info("No matches yet. Open your replays on **Dashboard** (or upload them there) first.")
+            st.stop()
+        keys = sorted(players, key=lambda k: (k != (me or "").casefold(), players[k].casefold()))
+        player = st.selectbox("Player", keys, format_func=lambda k: players[k] + (" (you)" if players[k] == me else ""))
+        table = operator_table(db, player)
+    if not table:
+        st.info(f"No operator picks recorded for {md(players[player])}.")
+    else:
+        st.caption(f"{md(players[player])}'s operators over all their matches, most played first.")
+        st.dataframe(table, hide_index=True, column_config={
+            "Round win %": st.column_config.NumberColumn(format="%.0f%%"),
+            "Headshot %": st.column_config.NumberColumn(format="%.0f%%"),
+            "K/D": st.column_config.NumberColumn(format="%.2f"), "KPR": st.column_config.NumberColumn(format="%.2f"),
+        })

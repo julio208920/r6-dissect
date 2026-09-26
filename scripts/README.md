@@ -17,6 +17,12 @@ It comes three ways, all with CSV, JSON and TXT export:
   straight from the game's folder,
 - **a command-line tool** (`match_stats.py`).
 
+The website and the Windows app also keep every match they read in your own
+stats database, so you can follow your trends over weeks, build a team out of
+the players you queue with, and **ask questions in plain English**: "How has
+my K/D changed over my last 10 matches?", "What's my best map?", "Who had the
+most kills in a single match?". No SQL needed, and nothing leaves your computer.
+
 > R6 Match Stats is an unofficial fan project, free to use. It isn't made,
 > endorsed or supported by Ubisoft. Rainbow Six and Ubisoft are trademarks of
 > Ubisoft Entertainment. See [Ubisoft's terms](#ubisofts-terms).
@@ -45,9 +51,9 @@ On macOS/Linux, use `go build` (it produces `r6-dissect`), `source
 
 ## Using the dashboard
 
-The top navigation includes **Dashboard**, **Match History**, **Operator
-Analytics**, **Team Analytics**, and **School Selection**. Dashboard takes a
-**Replay source**:
+The top navigation has **Dashboard**, **Ask**, **Match History**, **Team
+Analytics**, **Operator Analytics**, **School Selection** and **Get the Windows
+app**. Dashboard takes a **Replay source**:
 
 - **Folder or zip on this computer**: a path to one match folder, a `.zip`, or
   your whole `MatchReplay` folder. It's filled in automatically when Siege is
@@ -67,11 +73,60 @@ breakdown for each player. The **Use demo match** toggle loads a built-in
 sample match, so you can try the dashboard without a replay. The **Get the
 Windows app** page has the download button and install steps.
 
-Open **Season tracker** below a loaded scoreboard to choose a roster and record
-the match. Only players explicitly tracked are saved, and duplicate rounds are
-ignored. Match History and Team Analytics read those season totals from SQLite.
-Operator Analytics summarizes operator picks and round outcomes for the latest
-replay loaded in the current browser session.
+The other pages work from every match, not just the one on the Dashboard:
+
+- **Ask**: type a question, or tap one of the examples (see below).
+- **Match History**: every match, newest first, with your record, K/D and EPS.
+  Select a match to open its scoreboards on the Dashboard.
+- **Team Analytics > Build a team**: up to five players, filled in with you and
+  the four teammates you play with most. Every match where enough of them (you
+  choose how many) played on the same side is found, and each player's stats
+  are added up across those matches, with the team's record and EPS. Teams are
+  saved: pick one again from the **Team** list, and Ask knows its name ("How is
+  Varsity doing?").
+- **Team Analytics > Season teams** and the **Season tracker** below a loaded
+  scoreboard: choose a roster and record matches into season totals. Only the
+  players you track are saved, and duplicate rounds are ignored.
+- **Operator Analytics**: each operator's rounds, round win rate, K/D, KPR and
+  headshot rate over **All matches** (for any player), or picks and site win
+  rates for every player in **This match** (the Dashboard's match, or your
+  newest one).
+
+### Your stats database and Ask
+
+Every match the app reads goes into a local SQLite database: the Dashboard adds
+each match you open, and Ask, Match History, Team Analytics and Operator
+Analytics add the rest of your replay source (the game's `MatchReplay` folder,
+by default) when they open, with a progress bar the first time. Matches stay in
+the database after the game deletes old replays, and reading a match again
+replaces it, so nothing is counted twice. Every number comes from the same code
+as the scoreboards. A recording with no players (a match you left during
+loading) is skipped, and when two folders hold the same match the fuller one is
+kept.
+
+**Ask** turns a plain-English question into a database query and answers with
+a sentence, a table (downloadable as CSV) and, for trends and rankings, a chart.
+It understands:
+
+- **stats**: K/D, kills, deaths, assists, EPS, KPR, headshot %, KOST, survival,
+  entry kills and deaths, clutches, multikills, aces, trades, plants, defuses,
+  win rate, wins and losses;
+- **who**: you (the player who recorded the replays), any player by name or
+  part of it ("Paltry" for Paltry.FBRD; typos are forgiven), your teammates,
+  your opponents, everyone, or a team you built;
+- **filters**: a map, an operator ("as Ash"), attack or defense, Ranked,
+  Unranked, Quick Match or custom games, wins or losses, dates ("this week",
+  "since Sep 20", "in September", "yesterday"), your last or first N matches,
+  and conditions ("matches where I had at least 3 kills");
+- **answers**: a single number, rankings ("top 5 players by EPS", "best map",
+  "where do I rank"), trends ("over time", "per week"), comparisons ("me vs
+  Talus", "attack vs defense", "ranked vs custom", "this week vs last week"),
+  your best single matches ("most kills in a match"), summaries ("how am I
+  doing") and match lists ("my last 5 matches").
+
+It always says how it read the question, and when it guesses (a misspelled
+name, or a name that's both a player and an operator) it says so. It works with
+its own word lists and rules: no AI model, and no internet connection.
 
 ### NECC school data
 
@@ -191,14 +246,15 @@ To build it on your own PC instead, run
   Defender and won't publish one it flags. The app isn't code-signed, which is
   why Windows SmartScreen warns about it. A code-signing certificate would
   remove that warning.
-- **Replays are temporary; tracking is opt-in.** The Windows app reads replays
-  in place and never writes to the game's folders. Uploads are deleted after an
-  hour unused. When you choose to track players and save a match in a private
-  local deployment, derived stats and tracked names are stored in SQLite:
-  `%LOCALAPPDATA%\R6MatchStats\season_stats.db` in the Windows app, or
-  `data/season_stats.db` in a source checkout. Delete that database to remove
-  saved season stats. Tracking writes are disabled on shared public hosting so
-  visitors' stats are not mixed into a server-wide database.
+- **Replays are temporary; stats stay on your computer.** The Windows app reads
+  replays in place and never writes to the game's folders. Uploads are deleted
+  after an hour unused. The stats database (every match's numbers and player
+  names, and your saved teams) and the season tracker's totals are stored in
+  SQLite: `%LOCALAPPDATA%\R6MatchStats\season_stats.db` in the Windows app, or
+  `data/season_stats.db` in a source checkout. Delete that file to remove
+  everything the app has saved. On the public website each visitor gets their
+  own stats database, deleted with their uploads after an hour unused, and
+  season tracking is turned off so visitors' stats are never mixed.
 
 ## Ubisoft's terms
 
@@ -227,8 +283,9 @@ certain what it allows:
   been publicly documented for years isn't permission. If you want certainty,
   ask Ubisoft before publishing widely.
 - **Don't feed replays to AI tools** (Terms 1.3): the Terms forbid using game
-  content as input to AI tools. The app doesn't, but keep that in mind when
-  asking an assistant for help with replay data.
+  content as input to AI tools. The app doesn't: **Ask** reads questions with
+  its own rules and word lists, on your computer, with no AI model or online
+  service. Keep that in mind when asking an assistant for help with replay data.
 
 ## Architecture
 
@@ -242,13 +299,22 @@ r6-dissect (Go CLI, repo root)  →  JSON per round
    ▼
 metrics_engine.compute_match_metrics  →  PlayerStats per player
    │  metrics_engine.pro_league_rows               (the 12 display columns)
-   ▼
-app.py → report.py, history.py, operators.py, teams.py, schools.py, download.py
-  (Streamlit)  /  match_stats.py (CLI)
+   ├──────────►  stats_db.StatsDB  (SQLite: every match, player and round)
+   │                │  ask_engine.ask  (plain English → SQL → answer)
+   ▼                ▼
+app.py → report.py (Dashboard), ask.py, history.py, teams.py, operators.py,
+  (Streamlit)  schools.py, download.py     /  match_stats.py (CLI)
 ```
 
-`app.py` is the entry point: it sets up the page, Three.js scene, and navigation
-across the dashboard pages. `app_info.py` holds the app name, version and
+`app.py` is the entry point: it sets up the page's styling, header and
+navigation. `sources.py` is where every page gets its replays: the source
+picked on the Dashboard (or, on your PC, the game's `MatchReplay` folder), each
+match parsed at most once per session, and the stats database kept up to date
+from it, four matches parsed at a time. `stats_db.py` is the database.
+`ask_engine.py` reads a question into a query (whose stats, which ones, which
+filters, what kind of answer), runs it with every value passed as a query
+parameter, and writes the answer; it also works out Build a team and the
+all-matches operator table. `app_info.py` holds the app name, version and
 download links, and tells whether it's running as the public website, the
 Windows app (`desktop/launcher.py`), or from a source checkout.
 
@@ -273,14 +339,16 @@ then `r6-dissect.exe` (Windows) or `r6-dissect` at the repo root, then
 `normalize_from_r6_dissect` needs updating.
 
 **Season-long stats:** `season_stats.py` (`StatsManager`) logs tracked
-players' rounds into SQLite across a season without double-counting. The Team
-Analytics, Match History, and School Selection pages use this data. See
+players' rounds into SQLite across a season without double-counting. The
+Season tracker, Team Analytics' Season teams tab and School Selection use this
+data. See
 [SEASON_STATS.md](SEASON_STATS.md) and `example_season_stats.py`.
 
 ## Tests
 
 ```bash
-python -m unittest discover -s scripts   # metrics engine, pages, command line, replay files and scanner, season stats
+python -m unittest discover -s scripts   # metrics engine, pages, command line, replay files and scanner,
+                                         # season stats, stats database, Ask (checked against scoreboard numbers)
 python -m unittest discover -s desktop   # the Windows app's integrity check
 go test ./...                            # the Go replay parser
 ```

@@ -178,6 +178,17 @@ def _extract_name(field: Any, default: str = "") -> str:
     return default
 
 
+# r6-dissect's match types, as the game names them ("Standard" was Unranked's name until Y10S2)
+_MATCH_TYPES = {"Ranked": "Ranked", "Unranked": "Unranked", "Standard": "Unranked", "QuickMatch": "Quick Match",
+                "CustomGameOnline": "Custom game", "CustomGameLocal": "Custom game"}
+
+
+def _match_type(field: Any) -> str | None:
+    """"Ranked", "Unranked", "Quick Match" or "Custom game"; None for one r6-dissect doesn't know."""
+    name = _extract_name(field)
+    return _MATCH_TYPES.get(name, None if name.startswith("MatchType(") else name or None)
+
+
 def _display_map_name(name: str) -> str:
     """r6-dissect names reworked maps with a season suffix and no spaces
     ("VillaY10", "KafeDostoyevsky") -> "Villa", "Kafe Dostoyevsky"."""
@@ -310,17 +321,43 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
             sum(1 for r in rounds if r["winner_team"] == 1),
         ]
 
-    map_name = _display_map_name(_extract_name(round_sources[0].get("map") if round_sources else None, "Unknown Map"))
-    match_id = round_sources[0].get("matchID", "unknown") if round_sources else "unknown"
+    first = round_sources[0] if round_sources else {}
+    map_name = _display_map_name(_extract_name(first.get("map"), "Unknown Map"))
 
     return {
         "map": map_name,
-        "match_id": match_id,
+        "match_id": first.get("matchID", "unknown"),
         "team_names": team_names,
         "final_score": score,
         "players": players,
         "rounds": rounds,
+        "played_at": _played_at(first.get("timestamp")),  # "YYYY-MM-DD HH:MM:SS", or None
+        "match_type": _match_type(first.get("matchType")),  # "Ranked", "Unranked", ...
+        "recording_player": _recording_player(round_sources),  # whose replay this is: "you"
     }
+
+
+def _played_at(timestamp: Any) -> str | None:
+    """The replay's start time, "2026-09-25T22:56:08Z" -> "2026-09-25 22:56:08". The game
+    writes the PC's local time (despite the "Z"), matching the match folder's name."""
+    if isinstance(timestamp, str):
+        found = re.match(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})", timestamp)
+        if found:
+            return f"{found.group(1)} {found.group(2)}"
+    return None
+
+
+def _recording_player(round_sources: list[dict[str, Any]]) -> str | None:
+    """The username of the player who recorded the replay, from its recording profile
+    (or player) ID; None if the replay doesn't say."""
+    for rs in round_sources:
+        players = rs.get("players") or []
+        profile, player_id = rs.get("recordingProfileID"), rs.get("recordingPlayerID")
+        for p in players:
+            if p.get("username") and ((profile and p.get("profileID") == profile)
+                                      or (player_id and p.get("id") == player_id)):
+                return p["username"]
+    return None
 
 
 def parse_replay(rec_file_path: str) -> tuple[dict[str, Any], dict[str, Any]]:

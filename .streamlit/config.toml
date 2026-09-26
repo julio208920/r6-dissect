@@ -16,3 +16,5 @@ gatherUsageStats = false
 [theme]
 # the app's own styling is dark; a light theme would draw dark text on it
 base = "dark"
+# the app's accent (scripts/app.py) on sliders, toggles and selected options; the Windows app sets the same
+primaryColor = "#d49353"
