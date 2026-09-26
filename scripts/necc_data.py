@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -52,6 +53,10 @@ def normalize_school_catalog(payload: Any) -> list[dict[str, Any]]:
             team_name = raw_team.get("name") or raw_team.get("team") or "Rainbow Six"
             teams.append({
                 "name": str(team_name),
+                "id": raw_team.get("id"),
+                "division": raw_team.get("division", ""),
+                "primary_color": raw_team.get("primary_color"),
+                "logo_url": raw_team.get("logo_url"),
                 "game": game or "Rainbow Six Siege",
                 "roster": _roster(raw_team),
                 "standings": raw_team.get("standings") or source.get("standings"),
@@ -91,3 +96,8 @@ def fetch_school_catalog(url: str | None = None) -> list[dict[str, Any]]:
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("The configured NECC feed did not return valid JSON.") from error
     return normalize_school_catalog(payload)
+
+
+def bundled_school_catalog() -> list[dict[str, Any]]:
+    """Verified LeagueOS season snapshot shipped with every desktop build."""
+    return normalize_school_catalog(json.loads(Path(__file__).with_name("necc_season.json").read_text(encoding="utf-8")))

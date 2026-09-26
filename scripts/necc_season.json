@@ -1,0 +1,1910 @@
+{
+  "source_url": "https://necc.v1.leagueos.gg/league/seasons/2ek7kqsupq1csjr1f4ew1ya0i",
+  "season": "Rainbow Six | Signups",
+  "captured_at": "2026-09-26",
+  "team_count": 123,
+  "schools": [
+    {
+      "name": "Alpena Community College",
+      "primary_color": "#8c2438",
+      "logo_url": "https://images.leagueos.gg/teams/5m6ck4r1iooh0gve1d6ncegon/8ujc22ynsxutrtb9q74q9gc2i",
+      "teams": [
+        {
+          "id": "5m6ck4r1iooh0gve1d6ncegon",
+          "name": "ACC Lumberjacks",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#8c2438",
+          "logo_url": "https://images.leagueos.gg/teams/5m6ck4r1iooh0gve1d6ncegon/8ujc22ynsxutrtb9q74q9gc2i",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Arkansas State University",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/6sdzwbq6hyx24kl8n84u5yv5q/648c8f54b9d6364f68e676d5",
+      "teams": [
+        {
+          "id": "6sdzwbq6hyx24kl8n84u5yv5q",
+          "name": "Arkansas State Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/6sdzwbq6hyx24kl8n84u5yv5q/648c8f54b9d6364f68e676d5",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Army West Point",
+      "primary_color": "#d3bc8d",
+      "logo_url": "https://images.leagueos.gg/teams/1v50x6euq3dvhmzxvgd9twrow/648c8fb209cdacdd5ee7cfbc",
+      "teams": [
+        {
+          "id": "1v50x6euq3dvhmzxvgd9twrow",
+          "name": "AWPE Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#d3bc8d",
+          "logo_url": "https://images.leagueos.gg/teams/1v50x6euq3dvhmzxvgd9twrow/648c8fb209cdacdd5ee7cfbc",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "b4gdb2i3dq9cdx1n549xxmp3e",
+          "name": "AWPE Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#d3bc8d",
+          "logo_url": "https://images.leagueos.gg/teams/b4gdb2i3dq9cdx1n549xxmp3e/648c8fb209cdacdd5ee7cfbc",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Ashland University",
+      "primary_color": "#522e91",
+      "logo_url": "https://images.leagueos.gg/teams/ahha4sxkzcrxaonaergtpz665/648c902f09cdacdd5ee7cfbd",
+      "teams": [
+        {
+          "id": "ahha4sxkzcrxaonaergtpz665",
+          "name": "Ashland University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#522e91",
+          "logo_url": "https://images.leagueos.gg/teams/ahha4sxkzcrxaonaergtpz665/648c902f09cdacdd5ee7cfbd",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Auburn University",
+      "primary_color": "#002b5c",
+      "logo_url": "https://images.leagueos.gg/teams/dd9j6ujnvavef4qgdl1r44g64/6490db6bf14cfcf90ebf45e4",
+      "teams": [
+        {
+          "id": "dd9j6ujnvavef4qgdl1r44g64",
+          "name": "Auburn Navy",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#002b5c",
+          "logo_url": "https://images.leagueos.gg/teams/dd9j6ujnvavef4qgdl1r44g64/6490db6bf14cfcf90ebf45e4",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Bentley University",
+      "primary_color": "#0075be",
+      "logo_url": "https://images.leagueos.gg/teams/5gid3ves5a2ja1m8bw32otcri/boxwjcnz3ivcx00ltyehq0cve",
+      "teams": [
+        {
+          "id": "5gid3ves5a2ja1m8bw32otcri",
+          "name": "Bentley Strike Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0075be",
+          "logo_url": "https://images.leagueos.gg/teams/5gid3ves5a2ja1m8bw32otcri/boxwjcnz3ivcx00ltyehq0cve",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Bowling Green State University",
+      "primary_color": "#fd5000",
+      "logo_url": "https://images.leagueos.gg/teams/en3oq86z99s2ygfmv3rlu8frv/648c939fb9d6364f68e676da",
+      "teams": [
+        {
+          "id": "en3oq86z99s2ygfmv3rlu8frv",
+          "name": "BGSU Orange",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#fd5000",
+          "logo_url": "https://images.leagueos.gg/teams/en3oq86z99s2ygfmv3rlu8frv/648c939fb9d6364f68e676da",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Bradley University",
+      "primary_color": "#a50000",
+      "logo_url": "https://images.leagueos.gg/teams/5z1yy2cd9t6cb9wr6qgqji02k/648c93ee09cdacdd5ee7cfc3",
+      "teams": [
+        {
+          "id": "5z1yy2cd9t6cb9wr6qgqji02k",
+          "name": "Bradley University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#a50000",
+          "logo_url": "https://images.leagueos.gg/teams/5z1yy2cd9t6cb9wr6qgqji02k/648c93ee09cdacdd5ee7cfc3",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Buena Vista University",
+      "primary_color": "#13294b",
+      "logo_url": "https://images.leagueos.gg/teams/6guy10d3qadpa092x9c411oij/648c9656b9d6364f68e676dd",
+      "teams": [
+        {
+          "id": "6guy10d3qadpa092x9c411oij",
+          "name": "Buena Vista",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#13294b",
+          "logo_url": "https://images.leagueos.gg/teams/6guy10d3qadpa092x9c411oij/648c9656b9d6364f68e676dd",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Butler University",
+      "primary_color": "#13294b",
+      "logo_url": "https://images.leagueos.gg/teams/1m32aof3ev1sq9lellla46blm/648c98f0b9d6364f68e676e1",
+      "teams": [
+        {
+          "id": "1m32aof3ev1sq9lellla46blm",
+          "name": "Butler Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#13294b",
+          "logo_url": "https://images.leagueos.gg/teams/1m32aof3ev1sq9lellla46blm/648c98f0b9d6364f68e676e1",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "California State Polytechnic University, Pomona",
+      "primary_color": "#098040",
+      "logo_url": "https://images.leagueos.gg/teams/7npmvid99wrtxci1yexh5xbxi/648c987d09cdacdd5ee7cfca",
+      "teams": [
+        {
+          "id": "7npmvid99wrtxci1yexh5xbxi",
+          "name": "Bronco Esports Emerald",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#098040",
+          "logo_url": "https://images.leagueos.gg/teams/7npmvid99wrtxci1yexh5xbxi/648c987d09cdacdd5ee7cfca",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "7hc7wb3rtraxx4mjv21u9f890",
+          "name": "Bronco Esports Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#098040",
+          "logo_url": "https://images.leagueos.gg/teams/7hc7wb3rtraxx4mjv21u9f890/648c987d09cdacdd5ee7cfca",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "California State University, Chico",
+      "primary_color": "#9d2235",
+      "logo_url": "https://images.leagueos.gg/teams/3rh5os9c6rwq44sm3webw2vug/02xunkzrmth1p5rie5jx75xub",
+      "teams": [
+        {
+          "id": "3rh5os9c6rwq44sm3webw2vug",
+          "name": "Chico Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#9d2235",
+          "logo_url": "https://images.leagueos.gg/teams/3rh5os9c6rwq44sm3webw2vug/02xunkzrmth1p5rie5jx75xub",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "California State University, Northridge",
+      "primary_color": "#d22030",
+      "logo_url": "https://images.leagueos.gg/teams/7s92slkl93a89yc4kc89hpa43/657a431dd09efe0b03ca85ec",
+      "teams": [
+        {
+          "id": "7s92slkl93a89yc4kc89hpa43",
+          "name": "Academy ● White",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#d22030",
+          "logo_url": "https://images.leagueos.gg/teams/7s92slkl93a89yc4kc89hpa43/657a431dd09efe0b03ca85ec",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "dvtb0r6s85dy0rxqwhgxsnkl8",
+          "name": "Varsity ● Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#d22030",
+          "logo_url": "https://images.leagueos.gg/teams/dvtb0r6s85dy0rxqwhgxsnkl8/657a431dd09efe0b03ca85ec",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "0yiwyo3ziiiemlhm39xk4g06l",
+          "name": "JV ● Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#d22030",
+          "logo_url": "https://images.leagueos.gg/teams/0yiwyo3ziiiemlhm39xk4g06l/657a431dd09efe0b03ca85ec",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Carthage College",
+      "primary_color": "#ce0e2d",
+      "logo_url": "https://images.leagueos.gg/teams/88mlb7jmeuddhndus04mt59zk/ea3fgf2abzul9adzae6kltcj5",
+      "teams": [
+        {
+          "id": "88mlb7jmeuddhndus04mt59zk",
+          "name": "Carthage Firebirds",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ce0e2d",
+          "logo_url": "https://images.leagueos.gg/teams/88mlb7jmeuddhndus04mt59zk/ea3fgf2abzul9adzae6kltcj5",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Central Methodist University",
+      "primary_color": "#c2d501",
+      "logo_url": "https://images.leagueos.gg/teams/15o30w7kk30em4mjwkd4srq9a/648c9b8bb9d6364f68e676e5",
+      "teams": [
+        {
+          "id": "15o30w7kk30em4mjwkd4srq9a",
+          "name": "CMU Eagles",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#c2d501",
+          "logo_url": "https://images.leagueos.gg/teams/15o30w7kk30em4mjwkd4srq9a/648c9b8bb9d6364f68e676e5",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Colorado School of Mines",
+      "primary_color": "#21314d",
+      "logo_url": "https://images.leagueos.gg/teams/age9fmq2s5d22be7515it1j3k/atpbrt1k4gy0601ai884eg7te",
+      "teams": [
+        {
+          "id": "age9fmq2s5d22be7515it1j3k",
+          "name": "Colorado School of Mines Varsity",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#21314d",
+          "logo_url": "https://images.leagueos.gg/teams/age9fmq2s5d22be7515it1j3k/atpbrt1k4gy0601ai884eg7te",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Concordia University, St. Paul",
+      "primary_color": "#003056",
+      "logo_url": "https://images.leagueos.gg/teams/6jos5ovauayx9fq5by3jtx9cm/648ca018f14cfcf90ebf44ed",
+      "teams": [
+        {
+          "id": "6jos5ovauayx9fq5by3jtx9cm",
+          "name": "Concordia- St. Paul",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#003056",
+          "logo_url": "https://images.leagueos.gg/teams/6jos5ovauayx9fq5by3jtx9cm/648ca018f14cfcf90ebf44ed",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Cumberland University",
+      "primary_color": "#a70026",
+      "logo_url": "https://images.leagueos.gg/teams/eols22calag2n4ynfc4dskgfm/b0kb3ghl7p5oude5kdho6r9ey",
+      "teams": [
+        {
+          "id": "eols22calag2n4ynfc4dskgfm",
+          "name": "Cumberland Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#a70026",
+          "logo_url": "https://images.leagueos.gg/teams/eols22calag2n4ynfc4dskgfm/b0kb3ghl7p5oude5kdho6r9ey",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "9zo00q26sdqb89ocvg1o710yj",
+          "name": "Cumberland Phoenix",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#84152c",
+          "logo_url": "https://images.leagueos.gg/teams/9zo00q26sdqb89ocvg1o710yj/648ca2a6f14cfcf90ebf44f1",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Dakota State University",
+      "primary_color": "#004165",
+      "logo_url": "https://images.leagueos.gg/teams/0y89fpvpah5t7949y86p2sqxz/65ca6f8c136f7d5107921667",
+      "teams": [
+        {
+          "id": "0y89fpvpah5t7949y86p2sqxz",
+          "name": "Dakota State Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004165",
+          "logo_url": "https://images.leagueos.gg/teams/0y89fpvpah5t7949y86p2sqxz/65ca6f8c136f7d5107921667",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Drury University",
+      "primary_color": "#ba0c2f",
+      "logo_url": "https://images.leagueos.gg/teams/ag87ukbekbwsrgki20mus4lzd/47i9zpzdbxwzchp5bui8nhvpi",
+      "teams": [
+        {
+          "id": "ag87ukbekbwsrgki20mus4lzd",
+          "name": "Varsity ● Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ba0c2f",
+          "logo_url": "https://images.leagueos.gg/teams/ag87ukbekbwsrgki20mus4lzd/47i9zpzdbxwzchp5bui8nhvpi",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "East Central University",
+      "primary_color": "#ff5200",
+      "logo_url": "https://images.leagueos.gg/teams/eynv2sk3aptwob8oymmnlkczi/0p16tid7sy0j5dzt5ihywvp03",
+      "teams": [
+        {
+          "id": "eynv2sk3aptwob8oymmnlkczi",
+          "name": "ECU Tiger Lanoy",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ff5200",
+          "logo_url": "https://images.leagueos.gg/teams/eynv2sk3aptwob8oymmnlkczi/0p16tid7sy0j5dzt5ihywvp03",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Elon University",
+      "primary_color": "#3f0909",
+      "logo_url": "https://images.leagueos.gg/teams/2c7b0cw57ydm4kkws6sf02bxu/7jif2kvcsiw7ziv0q7mrfdvyu",
+      "teams": [
+        {
+          "id": "2c7b0cw57ydm4kkws6sf02bxu",
+          "name": "Elon Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#3f0909",
+          "logo_url": "https://images.leagueos.gg/teams/2c7b0cw57ydm4kkws6sf02bxu/7jif2kvcsiw7ziv0q7mrfdvyu",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Embry-Riddle Aeronautical University",
+      "primary_color": "#00549a",
+      "logo_url": "https://images.leagueos.gg/teams/52hgjsz3eha61m9ujqdvp9ny9/648cac7f832b120a065cdfde",
+      "teams": [
+        {
+          "id": "52hgjsz3eha61m9ujqdvp9ny9",
+          "name": "Eagles Varsity",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00549a",
+          "logo_url": "https://images.leagueos.gg/teams/52hgjsz3eha61m9ujqdvp9ny9/648cac7f832b120a065cdfde",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Endicott College",
+      "primary_color": "#00325d",
+      "logo_url": "https://images.leagueos.gg/teams/0tkg7zd4p817o6pjdhlpbmy8e/aflws31izq6631fl09zx0s0ip",
+      "teams": [
+        {
+          "id": "0tkg7zd4p817o6pjdhlpbmy8e",
+          "name": "Endicott Gulls",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00325d",
+          "logo_url": "https://images.leagueos.gg/teams/0tkg7zd4p817o6pjdhlpbmy8e/aflws31izq6631fl09zx0s0ip",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Fanshawe College",
+      "primary_color": "#ed1c2a",
+      "logo_url": "https://images.leagueos.gg/teams/eoajov7pcdbhls3l3exhfum4a/emak4fw276z4wynybeelui5gc",
+      "teams": [
+        {
+          "id": "eoajov7pcdbhls3l3exhfum4a",
+          "name": "Fuel Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ed1c2a",
+          "logo_url": "https://images.leagueos.gg/teams/eoajov7pcdbhls3l3exhfum4a/emak4fw276z4wynybeelui5gc",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Fisher College",
+      "primary_color": "#0a1f3e",
+      "logo_url": "https://images.leagueos.gg/teams/anvabsh1bj8i0jhz5lfv65f6g/648cae31832b120a065cdfe0",
+      "teams": [
+        {
+          "id": "anvabsh1bj8i0jhz5lfv65f6g",
+          "name": "Fisher Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0a1f3e",
+          "logo_url": "https://images.leagueos.gg/teams/anvabsh1bj8i0jhz5lfv65f6g/648cae31832b120a065cdfe0",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Florida State University",
+      "primary_color": "#782f40",
+      "logo_url": "https://images.leagueos.gg/teams/4ksk90lk4zuwfqqxfbl9pt3wn/bz95dru5f0ygbdbw9zmwsohmp",
+      "teams": [
+        {
+          "id": "4ksk90lk4zuwfqqxfbl9pt3wn",
+          "name": "FSU Maroon",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#782f40",
+          "logo_url": "https://images.leagueos.gg/teams/4ksk90lk4zuwfqqxfbl9pt3wn/bz95dru5f0ygbdbw9zmwsohmp",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Grand Valley State University",
+      "primary_color": "#0032a0",
+      "logo_url": "https://images.leagueos.gg/teams/4iskl4p74he0fkcz5gb37dz3s/648cb0e4832b120a065cdfe3",
+      "teams": [
+        {
+          "id": "4iskl4p74he0fkcz5gb37dz3s",
+          "name": "GVSU Club",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0032a0",
+          "logo_url": "https://images.leagueos.gg/teams/4iskl4p74he0fkcz5gb37dz3s/648cb0e4832b120a065cdfe3",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Husson University",
+      "primary_color": "#004c42",
+      "logo_url": "https://images.leagueos.gg/teams/6owh7ngzs9z3qq1blq3mwq6z1/7mg5ogch20hpg8k0y3tzgw2rz",
+      "teams": [
+        {
+          "id": "6owh7ngzs9z3qq1blq3mwq6z1",
+          "name": "Jade Green",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004c42",
+          "logo_url": "https://images.leagueos.gg/teams/6owh7ngzs9z3qq1blq3mwq6z1/7mg5ogch20hpg8k0y3tzgw2rz",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "4iup9f60q6il6pik9cjx3q1eo",
+          "name": "Royal Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004c42",
+          "logo_url": "https://images.leagueos.gg/teams/4iup9f60q6il6pik9cjx3q1eo/7mg5ogch20hpg8k0y3tzgw2rz",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Indiana University",
+      "primary_color": "#990000",
+      "logo_url": "https://images.leagueos.gg/teams/8uk0wvi90nrjug3uzwmd0bt11/64d2a6b244b7a6bf7e0ca613",
+      "teams": [
+        {
+          "id": "8uk0wvi90nrjug3uzwmd0bt11",
+          "name": "Hoosiers",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#990000",
+          "logo_url": "https://images.leagueos.gg/teams/8uk0wvi90nrjug3uzwmd0bt11/64d2a6b244b7a6bf7e0ca613",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "cmcyfkj1gffd1rutmuov5q3r9",
+          "name": "Hoosiers Cream",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#990000",
+          "logo_url": "https://images.leagueos.gg/teams/cmcyfkj1gffd1rutmuov5q3r9/64d2a6b244b7a6bf7e0ca613",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Kansas State University",
+      "primary_color": "#512888",
+      "logo_url": "https://images.leagueos.gg/teams/4d6up9mh3uh8v2k99awuy5sws/648cbf66f14cfcf90ebf4510",
+      "teams": [
+        {
+          "id": "4d6up9mh3uh8v2k99awuy5sws",
+          "name": "K-State Varsity",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#512888",
+          "logo_url": "https://images.leagueos.gg/teams/4d6up9mh3uh8v2k99awuy5sws/648cbf66f14cfcf90ebf4510",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Kettering University",
+      "primary_color": "#f8be13",
+      "logo_url": "https://images.leagueos.gg/teams/7q1s8mciqvhj5b86h5ev90p0w/648cc9fff14cfcf90ebf451c",
+      "teams": [
+        {
+          "id": "7q1s8mciqvhj5b86h5ev90p0w",
+          "name": "Kettering Academy",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#f8be13",
+          "logo_url": "https://images.leagueos.gg/teams/7q1s8mciqvhj5b86h5ev90p0w/648cc9fff14cfcf90ebf451c",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "4te8cp3opse06o495ldn07p4o",
+          "name": "Kettering University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0b223f",
+          "logo_url": "https://images.leagueos.gg/teams/4te8cp3opse06o495ldn07p4o/648cc9fff14cfcf90ebf451c",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "King's College",
+      "primary_color": "#cc0033",
+      "logo_url": "https://images.leagueos.gg/teams/8qmsd0i4f61g3potwjuiiyohg/648ccb54f14cfcf90ebf451d",
+      "teams": [
+        {
+          "id": "8qmsd0i4f61g3potwjuiiyohg",
+          "name": "King's College",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#cc0033",
+          "logo_url": "https://images.leagueos.gg/teams/8qmsd0i4f61g3potwjuiiyohg/648ccb54f14cfcf90ebf451d",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Lackawanna College",
+      "primary_color": "#0a3161",
+      "logo_url": "https://images.leagueos.gg/teams/3lci91zjn6ehwkejn998tpkpm/64f9eefe837604534eb84210",
+      "teams": [
+        {
+          "id": "3lci91zjn6ehwkejn998tpkpm",
+          "name": "Lackawanna College",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0a3161",
+          "logo_url": "https://images.leagueos.gg/teams/3lci91zjn6ehwkejn998tpkpm/64f9eefe837604534eb84210",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Louisiana State University",
+      "primary_color": "#461d7c",
+      "logo_url": "https://images.leagueos.gg/teams/awmnvlbmtme5wms2ysd1ptjzx/648cce75832b120a065cdff4",
+      "teams": [
+        {
+          "id": "awmnvlbmtme5wms2ysd1ptjzx",
+          "name": "LSU",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#461d7c",
+          "logo_url": "https://images.leagueos.gg/teams/awmnvlbmtme5wms2ysd1ptjzx/648cce75832b120a065cdff4",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Marietta College",
+      "primary_color": "#00205b",
+      "logo_url": "https://images.leagueos.gg/teams/ex8mjfz5yygpaqc66m0qfjmbb/d89ic8juz4ks1cer41anpyb5d",
+      "teams": [
+        {
+          "id": "ex8mjfz5yygpaqc66m0qfjmbb",
+          "name": "Marietta College",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00205b",
+          "logo_url": "https://images.leagueos.gg/teams/ex8mjfz5yygpaqc66m0qfjmbb/d89ic8juz4ks1cer41anpyb5d",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Marist University",
+      "primary_color": "#f92b35",
+      "logo_url": "https://images.leagueos.gg/teams/35cquogyi8tvtlf224j28kvjx/3rk5cyyn4nd83p0af9mrckdy9",
+      "teams": [
+        {
+          "id": "35cquogyi8tvtlf224j28kvjx",
+          "name": "Marist Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#f92b35",
+          "logo_url": "https://images.leagueos.gg/teams/35cquogyi8tvtlf224j28kvjx/3rk5cyyn4nd83p0af9mrckdy9",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Marshalltown Community College",
+      "primary_color": "#003a70",
+      "logo_url": "https://images.leagueos.gg/teams/8nrulocfh7x69pwwjo036gsad/6520232397addde53ddf3a36",
+      "teams": [
+        {
+          "id": "8nrulocfh7x69pwwjo036gsad",
+          "name": "Marshalltown Community College Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#003a70",
+          "logo_url": "https://images.leagueos.gg/teams/8nrulocfh7x69pwwjo036gsad/6520232397addde53ddf3a36",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "1v9ja3wndjl9l576k29jpxzxv",
+          "name": "Marshalltown Community College Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#003a70",
+          "logo_url": "https://images.leagueos.gg/teams/1v9ja3wndjl9l576k29jpxzxv/6520232397addde53ddf3a36",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Minnesota State University, Mankato",
+      "primary_color": "#480059",
+      "logo_url": "https://images.leagueos.gg/teams/5ha6by646m2gx97m9e1ng6u8h/8w9f40a0o3ai4ai2zsxcm53fa",
+      "teams": [
+        {
+          "id": "5ha6by646m2gx97m9e1ng6u8h",
+          "name": "Minnesota State Mavericks",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#480059",
+          "logo_url": "https://images.leagueos.gg/teams/5ha6by646m2gx97m9e1ng6u8h/8w9f40a0o3ai4ai2zsxcm53fa",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Missouri Southern State University",
+      "primary_color": "#004000",
+      "logo_url": "https://images.leagueos.gg/teams/alm2yavxpmlise8bs9s3xbj7w/648d0f35832b120a065ce019",
+      "teams": [
+        {
+          "id": "alm2yavxpmlise8bs9s3xbj7w",
+          "name": "MSSU Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004000",
+          "logo_url": "https://images.leagueos.gg/teams/alm2yavxpmlise8bs9s3xbj7w/648d0f35832b120a065ce019",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Missouri State University",
+      "primary_color": "#5a0009",
+      "logo_url": "https://images.leagueos.gg/teams/409541o5o1zc5t7mr9hqzikrz/648cd8bd832b120a065ce001",
+      "teams": [
+        {
+          "id": "409541o5o1zc5t7mr9hqzikrz",
+          "name": "Missouri State Maroon",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#5a0009",
+          "logo_url": "https://images.leagueos.gg/teams/409541o5o1zc5t7mr9hqzikrz/648cd8bd832b120a065ce001",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Missouri University of Science and Technology",
+      "primary_color": "#007a33",
+      "logo_url": "https://images.leagueos.gg/teams/eebg3rhl3z6cog7cwntwm2xcx/648cfcd9f14cfcf90ebf4538",
+      "teams": [
+        {
+          "id": "eebg3rhl3z6cog7cwntwm2xcx",
+          "name": "MST Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#007a33",
+          "logo_url": "https://images.leagueos.gg/teams/eebg3rhl3z6cog7cwntwm2xcx/648cfcd9f14cfcf90ebf4538",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "New England College",
+      "primary_color": "#18468c",
+      "logo_url": "https://images.leagueos.gg/teams/6ozvrtts7pqlzy0i45okz4p7f/61ct68lp47rfz3zxu7nv3e7r2",
+      "teams": [
+        {
+          "id": "6ozvrtts7pqlzy0i45okz4p7f",
+          "name": "Grims",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#18468c",
+          "logo_url": "https://images.leagueos.gg/teams/6ozvrtts7pqlzy0i45okz4p7f/61ct68lp47rfz3zxu7nv3e7r2",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "North Carolina State University",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/4rnmu0zsnz1qkh4k5n9arh8b8/648cff50f14cfcf90ebf453a",
+      "teams": [
+        {
+          "id": "4rnmu0zsnz1qkh4k5n9arh8b8",
+          "name": "NC State Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/4rnmu0zsnz1qkh4k5n9arh8b8/648cff50f14cfcf90ebf453a",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "2ppeu2tb7wca3nvka62u00tu4",
+          "name": "NC State Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ff0000",
+          "logo_url": "https://images.leagueos.gg/teams/2ppeu2tb7wca3nvka62u00tu4/648cff50f14cfcf90ebf453a",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "North Dakota State University",
+      "primary_color": "#005643",
+      "logo_url": "https://images.leagueos.gg/teams/e9efaxp4l7mylyvms7yutbgjo/dgjlhxrc8oku8dp1bplv6x01v",
+      "teams": [
+        {
+          "id": "e9efaxp4l7mylyvms7yutbgjo",
+          "name": "Bison Green",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#005643",
+          "logo_url": "https://images.leagueos.gg/teams/e9efaxp4l7mylyvms7yutbgjo/dgjlhxrc8oku8dp1bplv6x01v",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Northeastern University",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/2klm0ujajnaa0y7xfw0vfitdh/648d04f3f14cfcf90ebf453c",
+      "teams": [
+        {
+          "id": "2klm0ujajnaa0y7xfw0vfitdh",
+          "name": "Northeastern Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/2klm0ujajnaa0y7xfw0vfitdh/648d04f3f14cfcf90ebf453c",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Pace University",
+      "primary_color": "#ffd200",
+      "logo_url": "https://images.leagueos.gg/teams/8wvkum4vp0eo3xm49e2juk7jv/648d12e3f14cfcf90ebf4541",
+      "teams": [
+        {
+          "id": "8wvkum4vp0eo3xm49e2juk7jv",
+          "name": "Pace Aspen Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ffd200",
+          "logo_url": "https://images.leagueos.gg/teams/8wvkum4vp0eo3xm49e2juk7jv/648d12e3f14cfcf90ebf4541",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Pennsylvania Western University at Edinboro",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/0xyro9376a6jsurpjv5yrcz7i/648d1454f14cfcf90ebf4545",
+      "teams": [
+        {
+          "id": "0xyro9376a6jsurpjv5yrcz7i",
+          "name": "Pennsylvania Western University at Edinboro",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/0xyro9376a6jsurpjv5yrcz7i/648d1454f14cfcf90ebf4545",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Pittsburg State University",
+      "primary_color": "#cc0c2f",
+      "logo_url": "https://images.leagueos.gg/teams/2l12tuulzwhc1cuvbqszsphsv/0msj4c2i7qlz66hig9sx8e7we",
+      "teams": [
+        {
+          "id": "2l12tuulzwhc1cuvbqszsphsv",
+          "name": "Pittsburg State University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#cc0c2f",
+          "logo_url": "https://images.leagueos.gg/teams/2l12tuulzwhc1cuvbqszsphsv/0msj4c2i7qlz66hig9sx8e7we",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Robert Morris University",
+      "primary_color": "#14234b",
+      "logo_url": "https://images.leagueos.gg/teams/bu2bwomtgsakdso4d9wuggbna/648d19e9832b120a065ce024",
+      "teams": [
+        {
+          "id": "bu2bwomtgsakdso4d9wuggbna",
+          "name": "Robert Morris University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#14234b",
+          "logo_url": "https://images.leagueos.gg/teams/bu2bwomtgsakdso4d9wuggbna/648d19e9832b120a065ce024",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Sacred Heart University",
+      "primary_color": "#a70034",
+      "logo_url": "https://images.leagueos.gg/teams/a3poge5hnq5id6zogg5szjstw/a65t8qnb30v9at6w7d154dbsh",
+      "teams": [
+        {
+          "id": "a3poge5hnq5id6zogg5szjstw",
+          "name": "Sacred Heart University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#a70034",
+          "logo_url": "https://images.leagueos.gg/teams/a3poge5hnq5id6zogg5szjstw/a65t8qnb30v9at6w7d154dbsh",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Saint Mary's University (Halifax)",
+      "primary_color": "#612141",
+      "logo_url": "https://images.leagueos.gg/teams/9af06nprfwoclre3g9q9onm5n/648d1f86832b120a065ce02a",
+      "teams": [
+        {
+          "id": "9af06nprfwoclre3g9q9onm5n",
+          "name": "SMU Huskies Maroon",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#612141",
+          "logo_url": "https://images.leagueos.gg/teams/9af06nprfwoclre3g9q9onm5n/648d1f86832b120a065ce02a",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Sam Houston State University",
+      "primary_color": "#f56423",
+      "logo_url": "https://images.leagueos.gg/teams/4utvq2rsnpkhksypq52wpd2uo/7xc3op7lm0p6nh5uqh9xqc9ua",
+      "teams": [
+        {
+          "id": "4utvq2rsnpkhksypq52wpd2uo",
+          "name": "Sam Houston State Orange",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#f56423",
+          "logo_url": "https://images.leagueos.gg/teams/4utvq2rsnpkhksypq52wpd2uo/7xc3op7lm0p6nh5uqh9xqc9ua",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Simon Fraser University",
+      "primary_color": "#a6192e",
+      "logo_url": "https://images.leagueos.gg/teams/7biy6ntmmkw2do9d3mhwe50dg/12lhvinqj5auqsx8occ9lshuu",
+      "teams": [
+        {
+          "id": "7biy6ntmmkw2do9d3mhwe50dg",
+          "name": "SFU R6",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#a6192e",
+          "logo_url": "https://images.leagueos.gg/teams/7biy6ntmmkw2do9d3mhwe50dg/12lhvinqj5auqsx8occ9lshuu",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Southern Arkansas University",
+      "primary_color": "#003da5",
+      "logo_url": "https://images.leagueos.gg/teams/4dbi4jezybu2hmafifripsmvi/65a066047beeda02da34b203",
+      "teams": [
+        {
+          "id": "4dbi4jezybu2hmafifripsmvi",
+          "name": "SAU R6",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#003da5",
+          "logo_url": "https://images.leagueos.gg/teams/4dbi4jezybu2hmafifripsmvi/65a066047beeda02da34b203",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "St. Ambrose University",
+      "primary_color": "#00529b",
+      "logo_url": "https://images.leagueos.gg/teams/ezye1jlc7cmipovpr7l2qqlso/648d3390f14cfcf90ebf455d",
+      "teams": [
+        {
+          "id": "ezye1jlc7cmipovpr7l2qqlso",
+          "name": "St. Ambrose Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00529b",
+          "logo_url": "https://images.leagueos.gg/teams/ezye1jlc7cmipovpr7l2qqlso/648d3390f14cfcf90ebf455d",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Tarleton State University",
+      "primary_color": "#4f2d7f",
+      "logo_url": "https://images.leagueos.gg/teams/69wmsbkpbv8xq98ypqngscp9x/64cd89186739af90bbab1570",
+      "teams": [
+        {
+          "id": "69wmsbkpbv8xq98ypqngscp9x",
+          "name": "Tarleton State Purple",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#4f2d7f",
+          "logo_url": "https://images.leagueos.gg/teams/69wmsbkpbv8xq98ypqngscp9x/64cd89186739af90bbab1570",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Texas Christian University",
+      "primary_color": "#4d1979",
+      "logo_url": "https://images.leagueos.gg/teams/3cxjtmfj2gvietnbtaekechj7/648d4133832b120a065ce03b",
+      "teams": [
+        {
+          "id": "3cxjtmfj2gvietnbtaekechj7",
+          "name": "TCU Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#4d1979",
+          "logo_url": "https://images.leagueos.gg/teams/3cxjtmfj2gvietnbtaekechj7/648d4133832b120a065ce03b",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Texas State University",
+      "primary_color": "#501214",
+      "logo_url": "https://images.leagueos.gg/teams/1e3le70bz6tmq4tdy68t4k1av/6585e32fa352b625a7f85a9e",
+      "teams": [
+        {
+          "id": "1e3le70bz6tmq4tdy68t4k1av",
+          "name": "Texas State University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#501214",
+          "logo_url": "https://images.leagueos.gg/teams/1e3le70bz6tmq4tdy68t4k1av/6585e32fa352b625a7f85a9e",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Texas Tech University",
+      "primary_color": "#cc0000",
+      "logo_url": "https://images.leagueos.gg/teams/83vwd7dbaw6hlgv9kmajggu9j/64f3e49fa19f5877b5b8031d",
+      "teams": [
+        {
+          "id": "83vwd7dbaw6hlgv9kmajggu9j",
+          "name": "Tech Esports Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#cc0000",
+          "logo_url": "https://images.leagueos.gg/teams/83vwd7dbaw6hlgv9kmajggu9j/64f3e49fa19f5877b5b8031d",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "7kngl4ahqc2rqx8e4888nmuf5",
+          "name": "Texas Tech Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/7kngl4ahqc2rqx8e4888nmuf5/64f3e49fa19f5877b5b8031d",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "The University of Akron",
+      "primary_color": "#041e42",
+      "logo_url": "https://images.leagueos.gg/teams/41ckvmi2gye9a0t5154bnjdaz/ctzkfmvb36yhitf8qxepvtgfl",
+      "teams": [
+        {
+          "id": "41ckvmi2gye9a0t5154bnjdaz",
+          "name": "Akron White",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#041e42",
+          "logo_url": "https://images.leagueos.gg/teams/41ckvmi2gye9a0t5154bnjdaz/ctzkfmvb36yhitf8qxepvtgfl",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "The University of Alabama in Huntsville",
+      "primary_color": "#0077c8",
+      "logo_url": "https://images.leagueos.gg/teams/2dg6wg8ewajghg5fj3dwlpkso/64f41250451d5c2e8cf6aefb",
+      "teams": [
+        {
+          "id": "2dg6wg8ewajghg5fj3dwlpkso",
+          "name": "UAH Charger Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0077c8",
+          "logo_url": "https://images.leagueos.gg/teams/2dg6wg8ewajghg5fj3dwlpkso/64f41250451d5c2e8cf6aefb",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "a4kqzd8fgrfne2mslkghslgkj",
+          "name": "UAH Charger White",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#0077c8",
+          "logo_url": "https://images.leagueos.gg/teams/a4kqzd8fgrfne2mslkghslgkj/648d4c07f14cfcf90ebf456f",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Alaska Anchorage",
+      "primary_color": "#00583d",
+      "logo_url": "https://images.leagueos.gg/teams/euplg5w6dyma4h7y1ewy0ewkt/35xngpqctu5p297x4hfmui0xe",
+      "teams": [
+        {
+          "id": "euplg5w6dyma4h7y1ewy0ewkt",
+          "name": "UAA Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00583d",
+          "logo_url": "https://images.leagueos.gg/teams/euplg5w6dyma4h7y1ewy0ewkt/35xngpqctu5p297x4hfmui0xe",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "3i21w8sagd0v9l59l64etk6ix",
+          "name": "UAA Green",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00583d",
+          "logo_url": "https://images.leagueos.gg/teams/3i21w8sagd0v9l59l64etk6ix/35xngpqctu5p297x4hfmui0xe",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Alaska Fairbanks",
+      "primary_color": "#236294",
+      "logo_url": "https://images.leagueos.gg/teams/ei9knuzcb2it1o4t5ufyya3t3/649c9b736aea1efa3a78b40f",
+      "teams": [
+        {
+          "id": "ei9knuzcb2it1o4t5ufyya3t3",
+          "name": "Alaska Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#236294",
+          "logo_url": "https://images.leagueos.gg/teams/ei9knuzcb2it1o4t5ufyya3t3/649c9b736aea1efa3a78b40f",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Arkansas",
+      "primary_color": "#9d2235",
+      "logo_url": "https://images.leagueos.gg/teams/abg15583ysdftwc1yxr2e8quz/6kghikc3221p31tsujcnl832s",
+      "teams": [
+        {
+          "id": "abg15583ysdftwc1yxr2e8quz",
+          "name": "UARK Crimsion",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#9d2235",
+          "logo_url": "https://images.leagueos.gg/teams/abg15583ysdftwc1yxr2e8quz/6kghikc3221p31tsujcnl832s",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of California, Santa Cruz",
+      "primary_color": "#ffcb05",
+      "logo_url": "https://images.leagueos.gg/teams/5hww3k35toklh8wjwyw0lj9gs/648d5196832b120a065ce048",
+      "teams": [
+        {
+          "id": "5hww3k35toklh8wjwyw0lj9gs",
+          "name": "UCSC Amber",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ffcb05",
+          "logo_url": "https://images.leagueos.gg/teams/5hww3k35toklh8wjwyw0lj9gs/648d5196832b120a065ce048",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Central Florida",
+      "primary_color": "#b7a369",
+      "logo_url": "https://images.leagueos.gg/teams/f2cjmpi6p8g2n3bziaf3fonh0/64fa8c12015acdfaed3a36a6",
+      "teams": [
+        {
+          "id": "f2cjmpi6p8g2n3bziaf3fonh0",
+          "name": "Knighthaven",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#b7a369",
+          "logo_url": "https://images.leagueos.gg/teams/f2cjmpi6p8g2n3bziaf3fonh0/64fa8c12015acdfaed3a36a6",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "b8we0p8flmqodkq8dlzux7t47",
+          "name": "Knights Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/b8we0p8flmqodkq8dlzux7t47/6490b15bf14cfcf90ebf45c3",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "d656d51x7xw6cxbg5du6qt0ve",
+          "name": "Knights Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#b7a369",
+          "logo_url": "https://images.leagueos.gg/teams/d656d51x7xw6cxbg5du6qt0ve/6490b15bf14cfcf90ebf45c3",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Colorado Boulder",
+      "primary_color": "#cfb87c",
+      "logo_url": "https://images.leagueos.gg/teams/ddk4qianqllv4a5u3s4jqlnoi/6490b221f14cfcf90ebf45c4",
+      "teams": [
+        {
+          "id": "ddk4qianqllv4a5u3s4jqlnoi",
+          "name": "CU Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#cfb87c",
+          "logo_url": "https://images.leagueos.gg/teams/ddk4qianqllv4a5u3s4jqlnoi/6490b221f14cfcf90ebf45c4",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "8s4557kkp7cf4psx62chvv330",
+          "name": "CU Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#cfb87c",
+          "logo_url": "https://images.leagueos.gg/teams/8s4557kkp7cf4psx62chvv330/6490b221f14cfcf90ebf45c4",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Florida",
+      "primary_color": "#fa4616",
+      "logo_url": "https://images.leagueos.gg/teams/2i22yh6j3t9m6wu6c4jktfyd5/bc7f437jl6qecy5xhov2z1bcq",
+      "teams": [
+        {
+          "id": "2i22yh6j3t9m6wu6c4jktfyd5",
+          "name": "UF Club Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#fa4616",
+          "logo_url": "https://images.leagueos.gg/teams/2i22yh6j3t9m6wu6c4jktfyd5/bc7f437jl6qecy5xhov2z1bcq",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "a7u9vuo0e9mli23zl3udm9zqg",
+          "name": "UF Club Orange",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#fa4616",
+          "logo_url": "https://images.leagueos.gg/teams/a7u9vuo0e9mli23zl3udm9zqg/bc7f437jl6qecy5xhov2z1bcq",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Houston",
+      "primary_color": "#b91f36",
+      "logo_url": "https://images.leagueos.gg/teams/dnh82rsgjcyr9olf59oltubpb/6490b4a9f14cfcf90ebf45ca",
+      "teams": [
+        {
+          "id": "dnh82rsgjcyr9olf59oltubpb",
+          "name": "Houston Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#b91f36",
+          "logo_url": "https://images.leagueos.gg/teams/dnh82rsgjcyr9olf59oltubpb/6490b4a9f14cfcf90ebf45ca",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "5vuwepzq2jrrvt0tz6350uau9",
+          "name": "Houston Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#b91f36",
+          "logo_url": "https://images.leagueos.gg/teams/5vuwepzq2jrrvt0tz6350uau9/6490b4a9f14cfcf90ebf45ca",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "7wgurdpmmuodjj94vpm83nyj4",
+          "name": "UH Red",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#b91f36",
+          "logo_url": "https://images.leagueos.gg/teams/7wgurdpmmuodjj94vpm83nyj4/6490b4a9f14cfcf90ebf45ca",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Houston - Downtown",
+      "primary_color": "#2b3b6a",
+      "logo_url": "https://images.leagueos.gg/teams/749qzgn2lou119o26v8ul682v/6490b4dcf14cfcf90ebf45cb",
+      "teams": [
+        {
+          "id": "749qzgn2lou119o26v8ul682v",
+          "name": "University of Houston - Downtown Varsity",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#2b3b6a",
+          "logo_url": "https://images.leagueos.gg/teams/749qzgn2lou119o26v8ul682v/6490b4dcf14cfcf90ebf45cb",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Illinois Urbana-Champaign",
+      "primary_color": "#13284b",
+      "logo_url": "https://images.leagueos.gg/teams/b2wlrgfod9x6idusg507y3nn2/64b5c3abd7c29429a0f07792",
+      "teams": [
+        {
+          "id": "b2wlrgfod9x6idusg507y3nn2",
+          "name": "Illini Esports Orange",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#13284b",
+          "logo_url": "https://images.leagueos.gg/teams/b2wlrgfod9x6idusg507y3nn2/64b5c3abd7c29429a0f07792",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Manitoba",
+      "primary_color": "#4f2c1d",
+      "logo_url": "https://images.leagueos.gg/teams/5mrjhzt43h6cvdnlf18ytzhl6/evfgqq7ou2aeduip4t5e13ei9",
+      "teams": [
+        {
+          "id": "5mrjhzt43h6cvdnlf18ytzhl6",
+          "name": "University of Manitoba",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#4f2c1d",
+          "logo_url": "https://images.leagueos.gg/teams/5mrjhzt43h6cvdnlf18ytzhl6/evfgqq7ou2aeduip4t5e13ei9",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Michigan",
+      "primary_color": "#ffcb05",
+      "logo_url": "https://images.leagueos.gg/teams/2cux3kem9zm5c2jj0m8ogvucm/eke8y2k8c84d8u7ln4vdwugop",
+      "teams": [
+        {
+          "id": "2cux3kem9zm5c2jj0m8ogvucm",
+          "name": "UNIV. OF MICHIGAN",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ffcb05",
+          "logo_url": "https://images.leagueos.gg/teams/2cux3kem9zm5c2jj0m8ogvucm/eke8y2k8c84d8u7ln4vdwugop",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "cdq60sa14x6bkhqvxshluln2p",
+          "name": "UNIV. OF MICHIGAN JV1",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00274c",
+          "logo_url": "https://images.leagueos.gg/teams/cdq60sa14x6bkhqvxshluln2p/eke8y2k8c84d8u7ln4vdwugop",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Michigan - Flint",
+      "primary_color": "#00274c",
+      "logo_url": "https://images.leagueos.gg/teams/10x04agkprmjzgb2fo4gl5j3j/6490ba1d832b120a065ce0ac",
+      "teams": [
+        {
+          "id": "10x04agkprmjzgb2fo4gl5j3j",
+          "name": "UM-Flint",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00274c",
+          "logo_url": "https://images.leagueos.gg/teams/10x04agkprmjzgb2fo4gl5j3j/6490ba1d832b120a065ce0ac",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Missouri",
+      "primary_color": "#ecaa1f",
+      "logo_url": "https://images.leagueos.gg/teams/3yj93kj25w6ulzhinr0gni1pl/6490bab3832b120a065ce0ae",
+      "teams": [
+        {
+          "id": "3yj93kj25w6ulzhinr0gni1pl",
+          "name": "Mizzou Club",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ecaa1f",
+          "logo_url": "https://images.leagueos.gg/teams/3yj93kj25w6ulzhinr0gni1pl/6490bab3832b120a065ce0ae",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "8a4ha7woqfhn45j8unx3zhmzn",
+          "name": "Mizzou Club B",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ecaa1f",
+          "logo_url": "https://images.leagueos.gg/teams/8a4ha7woqfhn45j8unx3zhmzn/6490bab3832b120a065ce0ae",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Nebraska Omaha",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/bwovg34biin9q5k198ebsqywi/648d6d67f14cfcf90ebf4588",
+      "teams": [
+        {
+          "id": "bwovg34biin9q5k198ebsqywi",
+          "name": "UNO Black",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/bwovg34biin9q5k198ebsqywi/648d6d67f14cfcf90ebf4588",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of New Haven",
+      "primary_color": "#004b8d",
+      "logo_url": "https://images.leagueos.gg/teams/0g5eyo96hpreblgwgvg4qozbs/648d6d19832b120a065ce05c",
+      "teams": [
+        {
+          "id": "0g5eyo96hpreblgwgvg4qozbs",
+          "name": "University of New Haven Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004b8d",
+          "logo_url": "https://images.leagueos.gg/teams/0g5eyo96hpreblgwgvg4qozbs/648d6d19832b120a065ce05c",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "6sp44cawf3ik6pxq8vudancib",
+          "name": "UNIVERSITY OF NEW HAVEN CHARGERS GOLD",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#004b8d",
+          "logo_url": "https://images.leagueos.gg/teams/6sp44cawf3ik6pxq8vudancib/648d6d19832b120a065ce05c",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of North Carolina Asheville",
+      "primary_color": "#2254a4",
+      "logo_url": "https://images.leagueos.gg/teams/1gkd4g2bmxl98fnp3c2jaj1eu/648d6b10f14cfcf90ebf4586",
+      "teams": [
+        {
+          "id": "1gkd4g2bmxl98fnp3c2jaj1eu",
+          "name": "AVL Varsity",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#2254a4",
+          "logo_url": "https://images.leagueos.gg/teams/1gkd4g2bmxl98fnp3c2jaj1eu/648d6b10f14cfcf90ebf4586",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of North Carolina at Charlotte",
+      "primary_color": "#005035",
+      "logo_url": "https://images.leagueos.gg/teams/034gpklylm09rna7884aw7s62/dz2qyyd69y8q3478r47l16q8a",
+      "teams": [
+        {
+          "id": "034gpklylm09rna7884aw7s62",
+          "name": "Charlotte Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#005035",
+          "logo_url": "https://images.leagueos.gg/teams/034gpklylm09rna7884aw7s62/dz2qyyd69y8q3478r47l16q8a",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "4nuuuozwryqwu83p1aaiist4s",
+          "name": "Niner Esports Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#005035",
+          "logo_url": "https://images.leagueos.gg/teams/4nuuuozwryqwu83p1aaiist4s/6490bf2af14cfcf90ebf45d9",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "5qod7s3ugak35403vxwnhfdmn",
+          "name": "Niner Esports Green",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#005035",
+          "logo_url": "https://images.leagueos.gg/teams/5qod7s3ugak35403vxwnhfdmn/6490bf2af14cfcf90ebf45d9",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "5kfz6ahpayhyemf0c24yvs7uc",
+          "name": "Niner Esports White",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#005035",
+          "logo_url": "https://images.leagueos.gg/teams/5kfz6ahpayhyemf0c24yvs7uc/99d2bouec0asdc1m3nedv8gly",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of North Georgia",
+      "primary_color": "#002f87",
+      "logo_url": "https://images.leagueos.gg/teams/cxlj8nj7zlnhszpa7geryclx8/9ccfxdx3bzx9c4s3qyicpnamn",
+      "teams": [
+        {
+          "id": "cxlj8nj7zlnhszpa7geryclx8",
+          "name": "North Georgia Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#002f87",
+          "logo_url": "https://images.leagueos.gg/teams/cxlj8nj7zlnhszpa7geryclx8/9ccfxdx3bzx9c4s3qyicpnamn",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Oklahoma",
+      "primary_color": "#841617",
+      "logo_url": "https://images.leagueos.gg/teams/8jnbh5z70q2jnr83m56b0enrx/64ed03179a3d81004c2cf2fb",
+      "teams": [
+        {
+          "id": "8jnbh5z70q2jnr83m56b0enrx",
+          "name": "Oklahoma",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#841617",
+          "logo_url": "https://images.leagueos.gg/teams/8jnbh5z70q2jnr83m56b0enrx/64ed03179a3d81004c2cf2fb",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of South Alabama",
+      "primary_color": "#00205b",
+      "logo_url": "https://images.leagueos.gg/teams/4ruq1dacc5xq3c1p442sugo7k/648d697ef14cfcf90ebf4584",
+      "teams": [
+        {
+          "id": "4ruq1dacc5xq3c1p442sugo7k",
+          "name": "University of South Alabama",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#00205b",
+          "logo_url": "https://images.leagueos.gg/teams/4ruq1dacc5xq3c1p442sugo7k/648d697ef14cfcf90ebf4584",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Southern Maine",
+      "primary_color": "#002752",
+      "logo_url": "https://images.leagueos.gg/teams/4cdo2wsfmcn1jiuea537w07y9/65822646a352b625a7f859bc",
+      "teams": [
+        {
+          "id": "4cdo2wsfmcn1jiuea537w07y9",
+          "name": "USM Huskies",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#002752",
+          "logo_url": "https://images.leagueos.gg/teams/4cdo2wsfmcn1jiuea537w07y9/65822646a352b625a7f859bc",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "University of Southern Mississippi",
+      "primary_color": "#fecd34",
+      "logo_url": "https://images.leagueos.gg/teams/3aigsl23dwfq813st853ytrzb/65a7f75a8d47a17cda7c97f4",
+      "teams": [
+        {
+          "id": "3aigsl23dwfq813st853ytrzb",
+          "name": "Southern Miss",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#fecd34",
+          "logo_url": "https://images.leagueos.gg/teams/3aigsl23dwfq813st853ytrzb/65a7f75a8d47a17cda7c97f4",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Université de Sherbrooke",
+      "primary_color": "#018849",
+      "logo_url": "https://images.leagueos.gg/teams/0fdtqfubvz0qjhkybt5oc1h00/10voldx9vxf9pbzfjh1ee4uwo",
+      "teams": [
+        {
+          "id": "0fdtqfubvz0qjhkybt5oc1h00",
+          "name": "UdeS Acad",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#018849",
+          "logo_url": "https://images.leagueos.gg/teams/0fdtqfubvz0qjhkybt5oc1h00/10voldx9vxf9pbzfjh1ee4uwo",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "13ywlh0x2txcnhshc8musz5m6",
+          "name": "UdeS Esports",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#018849",
+          "logo_url": "https://images.leagueos.gg/teams/13ywlh0x2txcnhshc8musz5m6/10voldx9vxf9pbzfjh1ee4uwo",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Utah State University",
+      "primary_color": "#31c4f1",
+      "logo_url": "https://images.leagueos.gg/teams/ediz664u4v7o7egtwlun2ffoz/64af0099006772381b3905c2",
+      "teams": [
+        {
+          "id": "ediz664u4v7o7egtwlun2ffoz",
+          "name": "USU Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#31c4f1",
+          "logo_url": "https://images.leagueos.gg/teams/ediz664u4v7o7egtwlun2ffoz/64af0099006772381b3905c2",
+          "division": "Shotgun",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Virginia Commonwealth University",
+      "primary_color": "#000000",
+      "logo_url": "https://images.leagueos.gg/teams/5dmxs2z7k1ahjh0gcgu0baw17/1toyl34wvkpb1wdi33jpluig1",
+      "teams": [
+        {
+          "id": "5dmxs2z7k1ahjh0gcgu0baw17",
+          "name": "VCU Black.R6",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000000",
+          "logo_url": "https://images.leagueos.gg/teams/5dmxs2z7k1ahjh0gcgu0baw17/1toyl34wvkpb1wdi33jpluig1",
+          "division": "Pistol",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Warner University",
+      "primary_color": "#e6a724",
+      "logo_url": "https://images.leagueos.gg/teams/cq3ud6acvx48pffb4gxhk49qv/9xv17vj4450ae7moa9e9cq2ym",
+      "teams": [
+        {
+          "id": "cq3ud6acvx48pffb4gxhk49qv",
+          "name": "Warner",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#e6a724",
+          "logo_url": "https://images.leagueos.gg/teams/cq3ud6acvx48pffb4gxhk49qv/9xv17vj4450ae7moa9e9cq2ym",
+          "division": "LMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Washington University in St. Louis",
+      "primary_color": "#ffffff",
+      "logo_url": "https://images.leagueos.gg/teams/cnasjkft6zdgarhbo9prgs7e9/bg10p0d1wvzj8wjgkv5iea041",
+      "teams": [
+        {
+          "id": "cnasjkft6zdgarhbo9prgs7e9",
+          "name": "WashU Bears",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#ffffff",
+          "logo_url": "https://images.leagueos.gg/teams/cnasjkft6zdgarhbo9prgs7e9/bg10p0d1wvzj8wjgkv5iea041",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Weber State University",
+      "primary_color": "#492365",
+      "logo_url": "https://images.leagueos.gg/teams/9heyem5av3kjnuvcv1dtynd5c/6379p8rgt332x6uyq7qnk9cv1",
+      "teams": [
+        {
+          "id": "9heyem5av3kjnuvcv1dtynd5c",
+          "name": "Weber State University",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#492365",
+          "logo_url": "https://images.leagueos.gg/teams/9heyem5av3kjnuvcv1dtynd5c/6379p8rgt332x6uyq7qnk9cv1",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Widener University",
+      "primary_color": "#264f91",
+      "logo_url": "https://images.leagueos.gg/teams/bflbe8502wqukvhlryo9wq0uw/6582626fbea52155b106ab72",
+      "teams": [
+        {
+          "id": "bflbe8502wqukvhlryo9wq0uw",
+          "name": "Widener University Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#264f91",
+          "logo_url": "https://images.leagueos.gg/teams/bflbe8502wqukvhlryo9wq0uw/6582626fbea52155b106ab72",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        },
+        {
+          "id": "b73blq2ol1uhvbtv6csj0l9xi",
+          "name": "Widener University Gold",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#264f91",
+          "logo_url": "https://images.leagueos.gg/teams/b73blq2ol1uhvbtv6csj0l9xi/6582626fbea52155b106ab72",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Wilkes University",
+      "primary_color": "#000080",
+      "logo_url": "https://images.leagueos.gg/teams/ctnnaqbpten62j5tfaxfvhcmp/64dfc44a8ff16362d5e15beb",
+      "teams": [
+        {
+          "id": "ctnnaqbpten62j5tfaxfvhcmp",
+          "name": "Varsity ● Blue",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#000080",
+          "logo_url": "https://images.leagueos.gg/teams/ctnnaqbpten62j5tfaxfvhcmp/64dfc44a8ff16362d5e15beb",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "Wright State University",
+      "primary_color": "#046a38",
+      "logo_url": "https://images.leagueos.gg/teams/ak0sn0n3fq4rn0pztg6joom8b/65a4a79c9e286c6da98d8e63",
+      "teams": [
+        {
+          "id": "ak0sn0n3fq4rn0pztg6joom8b",
+          "name": "Wright State Raiders",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#046a38",
+          "logo_url": "https://images.leagueos.gg/teams/ak0sn0n3fq4rn0pztg6joom8b/65a4a79c9e286c6da98d8e63",
+          "division": "SMG",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "WVU Tech",
+      "primary_color": "#eaaa00",
+      "logo_url": "https://images.leagueos.gg/teams/5mjmo7z1oojsdfq5d5r90l41p/65132ea5a76ac0a080584e1e",
+      "teams": [
+        {
+          "id": "5mjmo7z1oojsdfq5d5r90l41p",
+          "name": "WVU Tech",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#eaaa00",
+          "logo_url": "https://images.leagueos.gg/teams/5mjmo7z1oojsdfq5d5r90l41p/65132ea5a76ac0a080584e1e",
+          "division": "Assault Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "name": "York College of Pennsylvania",
+      "primary_color": "#009844",
+      "logo_url": "https://images.leagueos.gg/teams/5c94gytwnas095y9tliiyiv5f/64dbcce9e495ceffb78b0d38",
+      "teams": [
+        {
+          "id": "5c94gytwnas095y9tliiyiv5f",
+          "name": "York Spartans",
+          "game": "Rainbow Six Siege",
+          "primary_color": "#009844",
+          "logo_url": "https://images.leagueos.gg/teams/5c94gytwnas095y9tliiyiv5f/64dbcce9e495ceffb78b0d38",
+          "division": "Sniper Rifle",
+          "roster": [],
+          "matches": []
+        }
+      ]
+    }
+  ]
+}

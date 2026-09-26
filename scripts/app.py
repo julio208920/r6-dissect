@@ -17,7 +17,7 @@ from pathlib import Path
 import streamlit as st
 
 from app_info import APP_NAME, quiet_windows_connection_resets
-from ui import render_header
+from branding import render_identity
 
 if __name__ == "__main__":
     from streamlit import runtime
@@ -96,7 +96,8 @@ page = st.navigation([
     st.Page("teams.py", title="Team Analytics", icon=":material/groups:"),
     st.Page("operators.py", title="Operator Analytics", icon=":material/target:"),
     st.Page("schools.py", title="School Selection", icon=":material/school:"),
+    st.Page("appearance.py", title="School Theme", icon=":material/palette:"),
     st.Page("download.py", title="Get the Windows app", icon=":material/download:"),
-], position="top")
-render_header(st.session_state.get("selected_school_color", "#d49353"))
+], position="sidebar")
+render_identity()
 page.run()

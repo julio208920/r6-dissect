@@ -17,6 +17,7 @@ on:
       - "go.sum"
       - "main.go"
       - "scripts/*.py"
+      - "scripts/necc_season.json"
       - "scripts/requirements.txt"
       - ".github/workflows/windows-app.yaml"
 

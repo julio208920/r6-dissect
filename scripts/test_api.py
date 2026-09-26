@@ -34,6 +34,13 @@ class TestApi(unittest.TestCase):
             self.addCleanup(patch.stop)
         self.client = TestClient(api.app)
 
+    def test_bundled_necc_directory_without_configuration(self):
+        with mock.patch.dict("os.environ", {"NECC_R6_DATA_URL": ""}):
+            response = self.client.get("/api/v1/schools")
+        self.assertEqual(response.status_code, 200)
+        schools = response.json()["schools"]
+        self.assertEqual(sum(len(school["teams"]) for school in schools), 123)
+
     def test_health_and_bad_season(self):
         self.assertEqual(self.client.get("/api/v1/health").json()["status"], "ok")
         self.assertEqual(self.client.get("/api/v1/seasons/bad!season/summary").status_code, 400)
