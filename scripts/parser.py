@@ -177,6 +177,20 @@ def _display_map_name(name: str) -> str:
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
 
 
+_OPERATOR_DISPLAY = {"Capitao": "Capitão", "Jager": "Jäger", "Nokk": "Nøkk", "Tubarao": "Tubarão"}
+
+
+def _operator_name(player: dict[str, Any]) -> str:
+    """A player's operator, as shown in the game: "SolidSnake" -> "Solid Snake", "Jager" -> "Jäger".
+    An operator newer than the r6-dissect build ("Operator(4567...)") falls back to the name the
+    replay stores for the player's role ("NOOR" -> "Noor")."""
+    name = _extract_name(player.get("operator"))
+    role = player.get("roleName")
+    if name.startswith("Operator(") and isinstance(role, str) and role.isascii() and role.strip():
+        return role.strip().title()
+    return _OPERATOR_DISPLAY.get(name) or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
+
+
 def _normalize_round(rs: dict[str, Any], idx: int) -> dict[str, Any]:
     teams = (rs.get("teams") or [])[:2]
     winner_team = None
@@ -229,9 +243,9 @@ def _normalize_round(rs: dict[str, Any], idx: int) -> dict[str, Any]:
         # who was actually in this round -- players leave/rejoin in long matches
         "players": [p["username"] for p in (rs.get("players") or []) if p.get("username")],
         "operators": {
-            p["username"]: _extract_name(p.get("operator"))
+            p["username"]: _operator_name(p)
             for p in (rs.get("players") or [])
-            if p.get("username") and _extract_name(p.get("operator"))
+            if p.get("username") and _operator_name(p)
         },
         "winner_team": winner_team,  # None if the replay doesn't record a winner
         "win_condition": win_condition,
@@ -263,7 +277,7 @@ def normalize_from_r6_dissect(raw: dict[str, Any]) -> dict[str, Any]:
             uname = p.get("username")
             if uname and uname not in team_of:
                 team_of[uname] = p.get("teamIndex", 0)
-            operator = _extract_name(p.get("operator"))
+            operator = _operator_name(p)
             if uname and operator:
                 operator_histories.setdefault(uname, []).append(operator)
 

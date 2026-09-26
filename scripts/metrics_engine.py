@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import csv
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 TRADE_WINDOW_SECONDS = 10.0
 
@@ -309,6 +309,26 @@ def compute_match_metrics(match: dict) -> dict[str, PlayerStats]:
         _process_round(rnd, team_of, stats)
     _compute_ratings(stats)
     return stats
+
+
+_SUMMED_FIELDS = tuple(f.name for f in fields(PlayerStats) if f.type == "int" and f.name != "team")
+
+
+def combine_player_stats(name: str, per_match: list[PlayerStats], team: int = 0) -> PlayerStats:
+    """One player's stats across several matches: counts are added up, so every
+    percentage and per-round stat is recomputed over all the rounds. EPS is
+    relative to the other players in each match, so it's the rounds-weighted
+    average of the player's per-match EPS."""
+    total = PlayerStats(name=name, team=team)
+    for s in per_match:
+        for f in _SUMMED_FIELDS:
+            setattr(total, f, getattr(total, f) + getattr(s, f))
+        for size, n in s.clutches.items():
+            total.clutches[size] = total.clutches.get(size, 0) + n
+        total.round_breakdown += s.round_breakdown
+    rated = sum(s.rounds_played for s in per_match)
+    total.rating = sum(s.rating * s.rounds_played for s in per_match) / rated if rated else 1.0
+    return total
 
 
 def _diff(a: int, b: int) -> str:

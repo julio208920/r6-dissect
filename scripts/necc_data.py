@@ -16,7 +16,8 @@ def _roster(team: dict[str, Any]) -> list[str]:
     raw = team.get("roster") or team.get("players") or team.get("members") or []
     names = []
     for player in raw:
-        name = player if isinstance(player, str) else player.get("name") or player.get("username")
+        name = player if isinstance(player, str) else (
+            player.get("name") or player.get("username") if isinstance(player, dict) else None)
         if isinstance(name, str) and name.strip():
             names.append(name.strip())
     return list(dict.fromkeys(names))

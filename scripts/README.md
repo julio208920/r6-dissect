@@ -256,6 +256,7 @@ The React and Unity clients use the shared FastAPI service in `api.py`. Start it
 from the repository root:
 
 ```bash
+pip install -r scripts/requirements-api.txt   # FastAPI, Uvicorn; the Streamlit app doesn't need them
 PYTHONPATH=scripts uvicorn api:app --app-dir scripts --host 127.0.0.1 --port 8000
 ```
 

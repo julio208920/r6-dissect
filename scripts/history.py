@@ -11,7 +11,8 @@ from season_stats import StatsManager
 
 st.title("Match History")
 st.caption("Recorded replay matches for the selected season.")
-season = st.text_input("Season", value=st.session_state.get("r6_season", "current"), key="history_season")
+season = st.text_input("Season", value=st.session_state.get("r6_season", "current"), key="history_season").strip() or "current"
+st.session_state["r6_season"] = season
 
 with StatsManager(season=season) as manager:
     matches = manager.match_history()
@@ -31,7 +32,6 @@ if matches:
             "Rounds": match["rounds"],
             "Tracked players": match["players"],
         } for match in matches],
-        use_container_width=True,
         hide_index=True,
     )
     st.download_button(

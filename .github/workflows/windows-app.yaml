@@ -45,6 +45,9 @@ jobs:
         run: |
           go test ./...
           if ($LASTEXITCODE) { throw "Go parser tests failed" }
+          # the REST API's packages, for its tests (installed after the build, so never bundled)
+          python -m pip install --quiet -r scripts/requirements-api.txt httpx
+          if ($LASTEXITCODE) { throw "pip install failed" }
           python -m unittest discover -s scripts
           if ($LASTEXITCODE) { throw "app tests failed" }
           python -m unittest discover -s desktop

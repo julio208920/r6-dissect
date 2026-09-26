@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -28,7 +29,7 @@ with upload_column:
     uploaded_catalog = st.file_uploader("Import school catalog (.json)", type=["json"], key="necc_catalog_upload")
     if uploaded_catalog:
         try:
-            raw_catalog = uploaded_catalog.read(MAX_CATALOG_BYTES + 1)
+            raw_catalog = uploaded_catalog.getvalue()
             if len(raw_catalog) > MAX_CATALOG_BYTES:
                 raise ValueError("The school catalog exceeds the 2 MB limit.")
             st.session_state["necc_schools"] = normalize_school_catalog(json.loads(raw_catalog))
@@ -75,8 +76,8 @@ with school_column:
     st.markdown(
         f'<div style="border-left:3px solid {primary_color};padding:8px 14px;background:#1b2224">'
         f'<div style="font:700 11px IBM Plex Mono,monospace;color:{primary_color};text-transform:uppercase">NECC R6</div>'
-        f'<div style="font:600 24px Barlow Condensed,sans-serif;color:#e8ece9">{selected_school["name"]}</div>'
-        f'<div style="color:#9ba7a4;font-size:13px">{team_name}</div></div>',
+        f'<div style="font:600 24px Barlow Condensed,sans-serif;color:#e8ece9">{html.escape(selected_school["name"])}</div>'
+        f'<div style="color:#9ba7a4;font-size:13px">{html.escape(team_name)}</div></div>',
         unsafe_allow_html=True,
     )
     st.metric("Roster", len(roster))
@@ -90,7 +91,7 @@ with school_column:
 with details_column:
     st.subheader("Roster")
     if roster:
-        st.dataframe([{"Player": name} for name in roster], use_container_width=True, hide_index=True)
+        st.dataframe([{"Player": name} for name in roster], hide_index=True)
     else:
         st.info("Roster data is not included for this team.")
 
@@ -98,7 +99,7 @@ with details_column:
     if standings:
         st.subheader("Standings")
         if isinstance(standings, list) and all(isinstance(row, dict) for row in standings):
-            st.dataframe(standings, use_container_width=True, hide_index=True)
+            st.dataframe(standings, hide_index=True)
         else:
             st.json(standings)
 
@@ -106,6 +107,6 @@ with details_column:
     if matches:
         st.subheader("Match history")
         if isinstance(matches, list) and all(isinstance(row, dict) for row in matches):
-            st.dataframe(matches, use_container_width=True, hide_index=True)
+            st.dataframe(matches, hide_index=True)
         else:
             st.json(matches)
