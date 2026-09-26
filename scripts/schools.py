@@ -14,6 +14,7 @@ from app_info import is_public_host
 from branding import DEFAULT_THEME, apply_theme
 from season_stats import StatsManager, StatsError
 import sqlite3
+from ui import md
 
 
 st.caption("NECC / COLLEGIATE DIRECTORY")

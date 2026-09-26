@@ -9,11 +9,12 @@ from ask_engine import Answer, Vocab, ask, suggestions
 from metrics_engine import rows_csv
 from sources import current_source, open_stats_db, sync_with_progress
 from stats_db import nice_day
-from ui import DEFAULT_ACCENT, md
+from branding import current_theme, readable_accent
+from ui import md
 
 _FORMATS = {"ratio": "%.2f", "pct": "%.0f%%", "eps": "%d", "count": "%d", "signed": "%+d"}
 _CHART_FORMATS = {"ratio": ".2f", "pct": ".0f", "eps": "d", "count": "d", "signed": "+d"}
-MUTED = "#83a99c"  # the page's mint (app.py)
+MUTED = "#5d7894"  # the other bars: a quiet blue that sits on the school theme's navy
 
 
 def _set_question(text: str) -> None:
@@ -27,16 +28,17 @@ def _chart(answer: Answer, me: str | None) -> None:
     x, y = answer.chart["x"], answer.chart["y"]
     data = [{"x": r[x], "y": r[y]} for r in answer.rows if r.get(y) is not None]
     number = _CHART_FORMATS.get(answer.formats.get(y, ""), "")
+    accent = readable_accent(current_theme()["primary"])  # the school theme's, like the rest of the page
     chart = alt.Chart(alt.Data(values=data)).encode(
         x=alt.X("x:N", sort=None, title=None, axis=alt.Axis(labelAngle=-35, labelLimit=180)),
         y=alt.Y("y:Q", title=y, axis=alt.Axis(format=number)),
         tooltip=[alt.Tooltip("x:N", title=x), alt.Tooltip("y:Q", title=y, format=number)],
     )
     if answer.chart["kind"] == "line":
-        chart = chart.mark_line(point=True, color=DEFAULT_ACCENT)
+        chart = chart.mark_line(point=True, color=accent)
     else:
         chart = chart.mark_bar().encode(color=alt.condition(alt.datum.x == (me if x == "Player" else None),
-                                                            alt.value(DEFAULT_ACCENT), alt.value(MUTED)))
+                                                            alt.value(accent), alt.value(MUTED)))
     st.altair_chart(chart.properties(height=260), width="stretch")
 
 

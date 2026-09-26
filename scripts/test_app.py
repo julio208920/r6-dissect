@@ -171,12 +171,12 @@ class TestAnalyticsPages(unittest.TestCase):
         self.addCleanup(patch.stop)  # every test starts with an empty database
 
     def test_pages_without_matches_say_where_to_start(self):
-        for page in ("ask.py", "history.py", "operators.py", "teams.py", "schools.py"):
+        for page in ("ask.py", "history.py", "operators.py", "teams.py", "schools.py", "appearance.py"):
             with self.subTest(page=page):
                 at = run_app()
                 at.switch_page(page).run()
                 self.assertFalse(at.exception)
-                if page != "schools.py":
+                if page not in ("schools.py", "appearance.py"):
                     self.assertTrue(any("No matches yet" in i.value for i in at.info), page)
 
     def test_ask_answers_about_the_loaded_matches(self):
@@ -264,6 +264,20 @@ class TestAnalyticsPages(unittest.TestCase):
         at.session_state["r6_last_match"] = SAMPLE_MATCH  # opened on the Dashboard
         at = at.run()
         self.assertFalse(any("newest match" in c.value for c in at.caption))
+
+    def test_track_a_school_roster(self):
+        from necc_data import normalize_school_catalog
+        from season_stats import StatsManager
+
+        at = run_app()
+        at.session_state["necc_schools"] = normalize_school_catalog({"schools": [{"name": "Test U", "teams": [
+            {"name": "Varsity", "game": "Rainbow Six Siege", "roster": ["_Sniper_", "Bravo"]}]}]})
+        at.switch_page("schools.py").run()
+        at = next(b for b in at.button if b.label == "Track this roster").click().run()
+        self.assertFalse(at.exception)
+        self.assertIn("Added 2 players to Varsity", at.success[0].value)
+        with StatsManager() as manager:  # this test's own database, not a real one
+            self.assertEqual(sorted(manager.tracked_players()), ["Bravo", "_Sniper_"])
 
     def test_season_teams_tab(self):
         at = run_app()

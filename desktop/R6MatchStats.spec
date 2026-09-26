@@ -33,9 +33,10 @@ hiddenimports = (
        "PIL.ImageGrab"]  # the launcher's smoke test screenshot
     # standard library modules the app files use, which PyInstaller can't see in plain files
     # (scripts/test_app.py checks this list against their imports)
-    + ["collections", "concurrent.futures", "contextlib", "csv", "dataclasses", "datetime", "difflib", "html",
-       "io", "ipaddress", "json", "logging", "os", "pathlib", "re", "shutil", "sqlite3", "subprocess", "sys",
-       "tempfile", "threading", "time", "typing", "unicodedata", "urllib.parse", "urllib.request", "zipfile"]
+    + ["base64", "collections", "concurrent.futures", "contextlib", "csv", "dataclasses", "datetime", "difflib",
+       "html", "io", "ipaddress", "json", "logging", "os", "pathlib", "re", "shutil", "sqlite3", "subprocess",
+       "sys", "tempfile", "threading", "time", "typing", "unicodedata", "urllib.parse", "urllib.request",
+       "zipfile"]
 )
 
 # the Details tab of the exe's Properties, and the name Task Manager shows (Windows only)

@@ -59,8 +59,8 @@ h1 { font-size:2.2rem !important; }
 [data-testid="stMetricValue"] { font-family:var(--mono); }
 [data-testid="stTabs"] button[role="tab"] { font-family:var(--display); font-size:1.05rem; text-transform:uppercase; }
 [data-testid="stTabs"] button[aria-selected="true"] { color:var(--accent); }
-button[kind="primary"], button[kind="primaryFormSubmit"] { background:#a96839; border-color:#a96839; color:#101416; }
-button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover { background:#c4844c; border-color:#c4844c; color:#101416; }
+/* form buttons (Ask, Show team stats) in the school theme's accent, like its primary buttons (branding.py) */
+button[kind="primaryFormSubmit"], button[kind="primaryFormSubmit"]:hover { background:var(--accent); border-color:var(--accent); color:#080e19; }
 .scorecard { background:linear-gradient(112deg,#202729,#171d1f); border:1px solid var(--border); border-left:3px solid var(--accent);
              border-radius:4px; padding:18px 24px; margin-bottom:18px; display:flex; align-items:center;
              justify-content:space-between; gap:16px; flex-wrap:wrap; box-shadow:0 12px 28px rgba(0,0,0,.18); }
@@ -80,11 +80,6 @@ table.pl tr:nth-child(even) td { background:rgba(32,39,41,.72); }
 table.pl th:first-child, table.pl td:first-child { text-align:left; font-weight:600; }
 table.pl td.eps { color:var(--accent); font-weight:800; }
 .pos { color:var(--pos); } .neg { color:var(--neg); }
-.r6-header { display:flex; align-items:baseline; gap:14px; padding:10px 16px; margin:0 0 6px;
-             border:1px solid var(--border); border-left:3px solid var(--r6-accent, var(--accent));
-             border-radius:4px; background:linear-gradient(112deg,#1b2224,#151b1d); }
-.r6-title { font:600 1.35rem var(--display); color:var(--text); letter-spacing:.01em; }
-.r6-sub { color:var(--dim); font-size:.85rem; }
 @media(max-width:700px) { .stMainBlockContainer { padding-left:1rem; padding-right:1rem; } h1 { font-size:1.8rem !important; } }
 </style>
 """, unsafe_allow_html=True)
