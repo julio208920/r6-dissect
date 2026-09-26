@@ -116,6 +116,21 @@ class StatsManagerTest(unittest.TestCase):
         self.assertAlmostEqual(team.clutch_success_rate, won / tried)
         self.assertEqual(sorted(self.sm.teams()), sorted([LIQUID, SSG]))
 
+    def test_eps_is_kept_per_match_and_rounds_weighted(self):
+        self.sm.add_players(TEAM0)
+        self.sm.log_match(self.match)
+        stats = compute_match_metrics(self.match)
+        self.assertEqual(self.sm.get_player_stats("fabian").eps, stats["Fabian"].eps)  # any case
+        rounds = sum(stats[n].rounds_played for n in TEAM0)
+        want = round(100 * sum(stats[n].rating * stats[n].rounds_played for n in TEAM0) / rounds)
+        self.assertEqual(self.sm.get_team_stats(LIQUID).eps, want)
+        self.sm.log_match(copy.deepcopy(self.match))  # the same match again changes nothing
+        self.assertEqual(self.sm.get_player_stats("Fabian").rated_rounds, stats["Fabian"].rounds_played)
+        self.assertEqual(self.sm.export_json()["players"][0]["eps"], self.sm.all_player_stats()[0].eps)
+        self.sm.reset_season()
+        self.sm.log_round("m", 1, {"Fabian": RoundResult(kills=1)})  # rounds without a match EPS
+        self.assertIsNone(self.sm.get_player_stats("Fabian").eps)
+
     def test_accumulates_across_matches(self):
         self.sm.add_player("Fabian")
         self.sm.log_match(self.match)

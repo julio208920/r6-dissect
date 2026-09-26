@@ -96,6 +96,18 @@ CREATE TABLE IF NOT EXISTS logged_rounds (
     PRIMARY KEY (season, match_id, round_num, username)
 );
 
+-- each tracked player's EPS rating in each logged match. EPS is relative to the
+-- other players in the match, so it can't be added up like the counters; the
+-- season EPS is the rounds-weighted average of these.
+CREATE TABLE IF NOT EXISTS match_ratings (
+    season    TEXT NOT NULL,
+    match_id  TEXT NOT NULL,
+    username  TEXT NOT NULL COLLATE NOCASE,
+    rounds    INTEGER NOT NULL,
+    rating    REAL NOT NULL,
+    PRIMARY KEY (season, match_id, username)
+);
+
 CREATE VIEW IF NOT EXISTS player_season_stats AS
 SELECT *,
     CASE WHEN deaths > 0 THEN CAST(kills AS REAL) / deaths ELSE CAST(kills AS REAL) END AS kd,
@@ -195,14 +207,21 @@ class PlayerSeasonStats:
     hs_pct: float
     clutches_won: int
     clutch_attempts: int
+    rating: float | None = None  # rounds-weighted EPS rating; None for matches logged before EPS was kept
+    rated_rounds: int = 0
 
     @property
     def clutches(self) -> dict[str, int]:
         return {f"1v{n}": self.totals[f"clutch_1v{n}"] for n in CLUTCH_SIZES}
 
+    @property
+    def eps(self) -> int | None:
+        return None if self.rating is None else round(100 * self.rating)
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["clutches"] = self.clutches
+        d["eps"] = self.eps
         d["kd"], d["kost_pct"], d["hs_pct"] = round(self.kd, 3), round(self.kost_pct, 1), round(self.hs_pct, 1)
         return d
 
@@ -217,6 +236,7 @@ class TeamSeasonStats:
     entry_diff: int
     clutch_success_rate: float | None  # won / attempted, None if no attempts
     kost_avg: float                    # mean of members' season KOST%
+    eps: int | None = None             # rounds-weighted over members with a rating
     member_stats: list[PlayerSeasonStats] = field(repr=False, default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -225,7 +245,7 @@ class TeamSeasonStats:
             "totals": self.totals, "kd": round(self.kd, 3), "entry_diff": self.entry_diff,
             "clutch_success_rate": None if self.clutch_success_rate is None
             else round(self.clutch_success_rate, 3),
-            "kost_avg": round(self.kost_avg, 1),
+            "kost_avg": round(self.kost_avg, 1), "eps": self.eps,
         }
 
 
@@ -306,6 +326,7 @@ class StatsManager:
             if delete_stats:
                 self._conn.execute("DELETE FROM player_totals WHERE username = ?", (username,))
                 self._conn.execute("DELETE FROM logged_rounds WHERE username = ?", (username,))
+                self._conn.execute("DELETE FROM match_ratings WHERE username = ?", (username,))
 
     def tracked_players(self) -> dict[str, str | None]:
         """{username: pinned team or None}"""
@@ -340,9 +361,15 @@ class StatsManager:
                 rounds.setdefault(rb.round_num, {})[name] = RoundResult.from_breakdown(rb)
 
         result = LogResult(match_id=str(match_id))
+        tracked = {u.casefold(): u for u in self.tracked_players()}
         with self._conn:  # one transaction for the whole match
             for round_num in sorted(rounds):
                 self._log_round(str(match_id), round_num, rounds[round_num], team_of, result)
+            self._conn.executemany(
+                "INSERT OR IGNORE INTO match_ratings (season, match_id, username, rounds, rating) VALUES (?, ?, ?, ?, ?)",
+                [(self.season, str(match_id), tracked[name.casefold()], ps.rounds_played, ps.rating)
+                 for name, ps in stats.items() if name.casefold() in tracked and ps.rounds_played],
+            )
         pinned = self.tracked_players()
         no_team = sorted(u for u in result.players_logged if not pinned.get(u) and not self._stored_team(u))
         if no_team:
@@ -440,6 +467,13 @@ class StatsManager:
 
     # ------------------------------------------------------------ reads ----
 
+    _STATS_SQL = """SELECT s.*, r.rating, COALESCE(r.rounds, 0) AS rated_rounds
+        FROM player_season_stats s LEFT JOIN (
+            SELECT username, SUM(rating * rounds) / SUM(rounds) AS rating, SUM(rounds) AS rounds
+            FROM match_ratings WHERE season = ? GROUP BY username COLLATE NOCASE
+        ) r ON r.username = s.username COLLATE NOCASE
+        WHERE s.season = ?"""
+
     def _player_from_row(self, row: sqlite3.Row) -> PlayerSeasonStats:
         return PlayerSeasonStats(
             season=row["season"], username=row["username"], team=row["team"],
@@ -447,20 +481,17 @@ class StatsManager:
             kd=row["kd"], kost_pct=row["kost_pct"], entry_diff=row["entry_diff"],
             hs_pct=row["hs_pct"], clutches_won=row["clutches_won"],
             clutch_attempts=row["clutch_attempts"],
+            rating=row["rating"], rated_rounds=row["rated_rounds"],
         )
 
     def get_player_stats(self, username: str) -> PlayerSeasonStats | None:
         row = self._conn.execute(
-            "SELECT * FROM player_season_stats WHERE season = ? AND username = ?",
-            (self.season, username),
+            self._STATS_SQL + " AND s.username = ?", (self.season, self.season, username),
         ).fetchone()
         return self._player_from_row(row) if row else None
 
     def all_player_stats(self) -> list[PlayerSeasonStats]:
-        rows = self._conn.execute(
-            "SELECT * FROM player_season_stats WHERE season = ? ORDER BY team, username",
-            (self.season,),
-        )
+        rows = self._conn.execute(self._STATS_SQL + " ORDER BY s.team, s.username", (self.season, self.season))
         return [self._player_from_row(r) for r in rows]
 
     def teams(self) -> list[str]:
@@ -478,6 +509,8 @@ class StatsManager:
         won = sum(p.clutches_won for p in members)
         attempted = sum(p.clutch_attempts for p in members)
         played = [p for p in members if p.totals["rounds_played"]]
+        rated = [p for p in members if p.rating is not None and p.rated_rounds]
+        rated_rounds = sum(p.rated_rounds for p in rated)
         return TeamSeasonStats(
             season=self.season,
             team=members[0].team,
@@ -487,6 +520,7 @@ class StatsManager:
             entry_diff=totals["entry_kills"] - totals["entry_deaths"],
             clutch_success_rate=won / attempted if attempted else None,
             kost_avg=sum(p.kost_pct for p in played) / len(played) if played else 0.0,
+            eps=round(100 * sum(p.rating * p.rated_rounds for p in rated) / rated_rounds) if rated_rounds else None,
             member_stats=members,
         )
 
@@ -516,6 +550,7 @@ class StatsManager:
         with self._conn:
             self._conn.execute("DELETE FROM player_totals WHERE season = ?", (season,))
             self._conn.execute("DELETE FROM logged_rounds WHERE season = ?", (season,))
+            self._conn.execute("DELETE FROM match_ratings WHERE season = ?", (season,))
 
     def seasons(self) -> list[str]:
         rows = self._conn.execute(

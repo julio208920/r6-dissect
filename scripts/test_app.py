@@ -106,6 +106,44 @@ class TestAnalyticsPages(unittest.TestCase):
                 at.switch_page(page).run()
                 self.assertFalse(at.exception)
 
+    @staticmethod
+    def build_team(at: AppTest, team: str, players: list[str]) -> AppTest:
+        at.switch_page("teams.py").run()
+        at.text_input[0].set_value(team)
+        for i, name in enumerate(players):
+            at.text_input[1 + i].set_value(name)
+        at.slider[0].set_value(2)
+        return at.button[0].click().run()
+
+    def test_build_a_team_needs_replays_loaded_first(self):
+        at = self.build_team(run_app(R6_HOSTED="1"), "Liquid", ["Fabian"])
+        self.assertFalse(at.exception)
+        self.assertIn("Dashboard", at.info[0].value)
+
+    def test_build_a_team_from_the_loaded_matches(self):
+        from sample_data import SAMPLE_MATCH, TEAM0
+
+        at = run_app(R6_HOSTED="1")
+        # what Dashboard keeps for a loaded replay folder, with both matches already parsed
+        players = {p["name"]: p["team"] for p in SAMPLE_MATCH["players"]}
+        at.session_state["source"] = {"groups": {"m1": ["m1-R01.rec"], "m2": ["m2-R01.rec"]},
+                                      "parsed": {n: (SAMPLE_MATCH, {}, []) for n in ("m1", "m2")},
+                                      "players": {"m1": players, "m2": players}}
+        at = self.build_team(at, "Liquid", TEAM0[:3] + ["Nobody"])
+        self.assertFalse(at.exception)
+        self.assertEqual({m.label: m.value for m in at.metric}["Matches"], "2")
+        table = at.dataframe[0].value
+        self.assertEqual(sorted(table["Player"]), sorted(TEAM0[:3]))
+        self.assertEqual(set(table["Matches"]), {2})
+        self.assertIn("EPS", table.columns)
+        self.assertIn("Nobody", at.warning[0].value)
+
+    def test_season_teams_have_an_eps_column(self):
+        at = run_app(R6_HOSTED="1")
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual([t.label for t in at.tabs], ["Build a team", "Season teams"])
+
 
 RELEASE = {"version": "9.9.0", "url": "https://github.com/o/r/releases/tag/v9.9.0",
            "installer": "https://github.com/o/r/releases/download/v9.9.0/R6MatchStats-Setup.exe",
