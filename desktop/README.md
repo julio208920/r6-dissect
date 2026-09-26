@@ -46,7 +46,11 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
   dashboard's server as a hidden copy of itself (`R6MatchStats.exe --serve`),
   and stops the server when the window closes. Opening the app while it's
   already open brings the existing window to the front. Without WebView2 it
-  falls back to the default browser.
+  falls back to the default browser. The app has no console, so Windows would
+  give every console program it starts (the replay parser, or Git when
+  Streamlit looks up the app's folder) a terminal window of its own; the
+  launcher makes all of them run without one (`hide_console_windows`, tested
+  in `test_launcher.py`).
 - `R6MatchStats.spec` tells PyInstaller what to bundle: a windowed exe (no
   console) with the icon and version details. The app files ship as plain
   files, because Streamlit runs `app.py` and its pages from disk.

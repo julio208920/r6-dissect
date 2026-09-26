@@ -19,6 +19,7 @@ From source:  python desktop/launcher.py   (needs pip install pywebview)
 
 from __future__ import annotations
 
+import functools
 import html
 import json
 import os
@@ -48,6 +49,29 @@ IS_WINDOWS = sys.platform == "win32"
 STARTUP_TIMEOUT = 90  # seconds; the first start after install is slow while antivirus scans the files
 DATA_DIR = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "R6MatchStats"
 LOG_FILE = DATA_DIR / "app.log"
+
+
+# ----------------------------------------------------------- no terminals --
+def hide_console_windows() -> None:
+    """This app has no console, so Windows gives each console program it starts its own
+    console window: an empty terminal flashing up for every replay parse (r6-dissect),
+    or when Streamlit asks Git about the app's folder. Make every program started from
+    this process run without one, whichever code starts it (a program that explicitly
+    asks for a new console still gets it). Windows only; safe to call more than once."""
+    if not IS_WINDOWS or getattr(subprocess.Popen.__init__, "hides_console_windows", False):
+        return
+    original = subprocess.Popen.__init__
+    explicit = subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
+
+    @functools.wraps(original)
+    def init(self, *args, **kwargs):
+        # creationflags is Popen's 14th parameter; nobody passes it by position, but leave that alone
+        if len(args) < 14 and not kwargs.get("creationflags", 0) & explicit:
+            kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
+        original(self, *args, **kwargs)
+
+    init.hides_console_windows = True
+    subprocess.Popen.__init__ = init
 
 
 # ------------------------------------------------------------------ server --
@@ -311,6 +335,7 @@ def already_running() -> bool:
 
 
 def main() -> int:
+    hide_console_windows()  # first, before anything can start a program
     if len(sys.argv) >= 4 and sys.argv[1] == "--serve":
         return serve(int(sys.argv[2]), int(sys.argv[3]))
     if not os.environ.get("R6_SMOKE_TEST") and already_running():
