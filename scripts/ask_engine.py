@@ -1210,7 +1210,7 @@ def _answer_team_summary(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
     row = {k: _value(v, "pct") if k.endswith("%") else v for k, v in row.items()}
     headline = (f"{q.team}: {_plural(s['maps'], 'map')}, {s['maps_won']}–{s['maps_lost']}; rounds "
                 f"{s['rounds_won']}–{s['rounds_lost']} ({fmt(row['Round win %'], 'pct')} won); of the "
-                f"{_plural(s['man_down'], 'round')} it went 2+ players down, it got back to even in "
+                f"{_plural(s['man_down'], 'round')} it went down 2+ players, it got back to even in "
                 f"{s['man_down_even']} and won {s['man_down_won']}{_filters_text(q)}.")
     formats = {k: "pct" if k.endswith("%") else "count" for k in row}
     return Answer(True, understood, headline, list(row), [row], None, [], formats)

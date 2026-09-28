@@ -42,9 +42,9 @@ def _team_stats(summary: dict) -> None:
     m[3].metric("Round win %", _pct(s["rounds_won"], played))
     stopped = s["defense_rounds"] - s["enemy_plants"]
     # (situation, how many, out of how many): the man-down rows after the first count only the
-    # rounds where the team went 2+ players down
+    # rounds where the team went down 2+ players
     rows = [
-        ("Man down: went 2+ players down", s["man_down"], played),
+        ("Man down: went down 2+ players", s["man_down"], played),
         ("Man down: got back to even numbers", s["man_down_even"], s["man_down"]),
         ("Man down: won the round anyway", s["man_down_won"], s["man_down"]),
         ("Attack: planted the defuser", s["plants"], s["attack_rounds"]),

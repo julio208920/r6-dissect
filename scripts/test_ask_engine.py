@@ -461,7 +461,7 @@ class TestTeamsAndComparisons(EngineTest):
         self.assertEqual(row["Man-down win %"], round(100 * team["man_down_won"] / team["man_down"], 1))
         self.assertNotIn("EPS", row)
         self.assertNotIn("K/D", row)
-        self.assertIn(f"of the {team['man_down']} rounds it went 2+ players down, it got back to even in "
+        self.assertIn(f"of the {team['man_down']} rounds it went down 2+ players, it got back to even in "
                       f"{team['man_down_even']} and won {team['man_down_won']}", answer.headline)
 
     def test_two_teams_are_compared_by_their_results(self):
