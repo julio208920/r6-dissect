@@ -12,7 +12,7 @@ from unittest import mock
 from metrics_engine import compute_match_metrics
 from parser import normalize_from_r6_dissect
 from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
-from stats_db import StatsDB, nice_day, nice_time, played_at_from_folder
+from stats_db import StatsDB, nice_day, nice_time, played_at_from_folder, team_rounds
 
 SUMMED = {  # match_players column -> PlayerStats attribute
     "rounds": "rounds_played", "kills": "kills", "deaths": "deaths", "assists": "assists", "headshots": "headshots",
@@ -117,6 +117,52 @@ class TestImport(unittest.TestCase):
             "score0 INTEGER, score1 INTEGER, rounds INTEGER NOT NULL, recorder TEXT, imported_at TEXT NOT NULL);")
         self.assertEqual(self.db.import_match("demo", SAMPLE_MATCH), SAMPLE_MATCH["match_id"])
         self.assertEqual(self.db.summary()["matches"], 1)
+
+    def test_team_rounds(self):
+        a, b = ["a1", "a2", "a3", "a4", "a5"], ["b1", "b2", "b3", "b4", "b5"]
+        players = [{"name": n, "team": 0 if n[0] == "a" else 1, "operator_history": []} for n in a + b]
+
+        def rnd(deaths, winner=0, attack=0, win_condition="KilledOpponents", present=None, plant=False):
+            events = [{"type": "death", "actor": n, "time": 100 - i} for i, n in enumerate(deaths)]
+            if plant:
+                events.append({"type": "plant", "actor": None, "time": 50})
+            return {"round_num": 0, "players": present or a + b, "winner_team": winner, "attack_team": attack,
+                    "win_condition": win_condition, "events": events}
+
+        match = {"players": players, "rounds": [
+            rnd(["a1", "a2", "b1"], winner=1),                     # team 0 was 3v5: man down, and lost
+            rnd(["a1", "a2", "b1", "b2", "b3", "b4", "b5"]),       # 3v5, then came back and won
+            rnd(["b1", "a1", "b2", "a2", "a3", "b3", "b4", "b5"], winner=0),  # never 2 down while both alive
+            rnd([], winner=1, win_condition="DisabledDefuser"),   # planted: no plant event, but the ending says so
+            rnd(["a2"], winner=0, plant=True, present=a[1:] + b),  # a1 disconnected, a2 died: 3v5, still a round
+            rnd([], winner=None, attack=None),                     # a round the replay can't place
+        ]}
+        rows = {(r, t): tuple(rest) for r, t, *rest in team_rounds(match)}
+        self.assertEqual(len(rows), 12)  # both teams, every round
+        self.assertEqual([rows[r, 0][3] for r in range(1, 7)], [1, 1, 0, 0, 1, 0])  # team 0 man down
+        self.assertEqual([rows[r, 1][3] for r in range(1, 7)], [0, 1, 0, 0, 0, 0])  # 1v3 during the comeback
+        self.assertEqual([rows[r, 0][2] for r in range(1, 7)], [0, 0, 0, 1, 1, 0])  # planted
+        # back to even after being man down: 3v5 back to 3v3 in the comeback; team 1 went 1v3 and was wiped out
+        self.assertEqual([rows[r, 0][4] for r in range(1, 7)], [0, 1, 0, 0, 0, 0])
+        self.assertEqual([rows[r, 1][4] for r in range(1, 7)], [0, 0, 0, 0, 0, 0])
+        self.assertEqual(rows[1, 0][:2], ("attack", 0))
+        self.assertEqual(rows[1, 1][:2], ("defense", 1))
+        self.assertEqual(rows[6, 0][:2], (None, None))
+
+    def test_a_database_from_before_team_rounds_reads_its_matches_again(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            path = Path(tmp) / "stats.db"
+            with StatsDB(path) as db:
+                db.import_match("Match-1", SAMPLE_MATCH, files=3)
+                db._conn.execute("DELETE FROM team_rounds")  # as 1.3.1 left it
+                db._conn.execute("DELETE FROM stats_meta WHERE key = 'data'")
+                db._conn.commit()
+            with StatsDB(path) as db:
+                self.assertEqual(db.needs_import({"Match-1": ["r1", "r2", "r3"]}), ["Match-1"])
+                db.import_match("Match-1", SAMPLE_MATCH, files=3)
+                self.assertEqual(db.query("SELECT COUNT(*) AS n FROM team_rounds")[0]["n"], 2 * len(SAMPLE_MATCH["rounds"]))
+            with StatsDB(path) as db:  # only once
+                self.assertEqual(db.needs_import({"Match-1": ["r1", "r2", "r3"]}), [])
 
     def test_importing_again_replaces_never_doubles(self):
         self.db.import_match("demo", SAMPLE_MATCH, files=5)

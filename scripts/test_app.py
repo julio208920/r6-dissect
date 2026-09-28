@@ -220,6 +220,9 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertEqual(sorted(players), sorted(TEAM0))  # Fabian's four teammates fill the rest
 
     def test_build_a_team(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import SAMPLE_MATCH
+
         at = with_matches(run_app())
         at.switch_page("teams.py").run()
         players = [at.text_input(key=f"roster_New team_{i}").value for i in range(4)]
@@ -227,11 +230,24 @@ class TestAnalyticsPages(unittest.TestCase):
         at.text_input(key="roster_New team_4").set_value("Nobody")  # four of the team, and one stranger
         at = next(b for b in at.button if b.label == "Show team stats").click().run()
         self.assertFalse(at.exception)
-        self.assertEqual({m.label: m.value for m in at.metric}["Matches"], "2")
-        table = at.dataframe[0].value
+        metrics = {m.label: m.value for m in at.metric}
+        self.assertEqual(metrics["Maps"], "2")
+        self.assertNotIn("Team EPS", metrics)  # a team's numbers are its own, never its players' added up
+        rounds = len(SAMPLE_MATCH["rounds"])
+        won = sum(r["winner_team"] == 0 for r in SAMPLE_MATCH["rounds"])  # Fabian's team is team 0
+        self.assertEqual(metrics["Round W–L"], f"{2 * won}–{2 * (rounds - won)}")  # each round once
+        situations = at.dataframe[0].value
+        self.assertEqual(list(situations.columns), ["Situation", "%", "Rounds"])
+        self.assertEqual(len(situations), 7)
+        # the man-down rows after the first are out of the man-down rounds only
+        went_down = int(situations["Rounds"][0].split(" of ")[0])
+        self.assertTrue(situations["Rounds"][1].endswith(f" of {went_down}"))
+        self.assertTrue(situations["Rounds"][2].endswith(f" of {went_down}"))
+        table = at.dataframe[1].value
         self.assertEqual(sorted(table["Player"]), sorted(players))
         self.assertEqual(set(table["Matches"]), {2})
-        self.assertIn("EPS", table.columns)
+        eps = {p: round(100 * s.rating) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        self.assertEqual(dict(zip(table["Player"], table["All-time EPS"])), {p: str(eps[p]) for p in players})
         self.assertIn("Nobody", at.warning[0].value)
         self.assertEqual(at.selectbox(key="team_choice").value, "Liquid")  # saved, and Ask knows it now
 
@@ -278,6 +294,29 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertIn("Added 2 players to Varsity", at.success[0].value)
         with StatsManager() as manager:  # this test's own database, not a real one
             self.assertEqual(sorted(manager.tracked_players()), ["Bravo", "_Sniper_"])
+
+    def test_season_teams_are_team_stats_and_eps_is_worked_out_again(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import SAMPLE_MATCH, TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+            for match, _raw, _warnings in at.session_state["source"]["parsed"].values():
+                tracker.log_match(match)
+            tracker._conn.execute("DELETE FROM match_ratings")  # saved before the tracker kept EPS
+            tracker._conn.commit()
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+        roster = at.dataframe[1].value
+        eps = {p: str(round(100 * s.rating)) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        self.assertEqual(dict(zip(roster["Player"], roster["EPS"])), {p: eps[p] for p in TEAM0})  # not "—"
+        self.assertEqual(dict(zip(roster["Player"], roster["All-time EPS"])), {p: eps[p] for p in TEAM0})
+        teams = at.dataframe[2].value
+        self.assertIn("Back to even %", teams.columns)
+        self.assertNotIn("K/D", teams.columns)
 
     def test_season_teams_tab(self):
         at = run_app()

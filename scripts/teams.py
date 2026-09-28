@@ -1,5 +1,6 @@
-"""Team analytics: build a team from player names and add up its stats across every match it
-played (from the stats database), and the season tracker's team totals."""
+"""Team analytics: build a team from player names and see how it does as a team across every
+match it played (from the stats database), with each player's own stats; and the season
+tracker's teams, the same way."""
 
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ import re
 import streamlit as st
 
 from app_info import is_public_host
-from ask_engine import team_report
+from ask_engine import eps_by_player, rate, team_report, team_summary
 from metrics_engine import pro_league_row, rows_csv
 from season_stats import StatsManager
 from sources import current_source, match_label, open_stats_db, sync_with_progress
@@ -22,6 +23,45 @@ NEW = "New team"
 
 def _fmt_eps(eps: int | None) -> str:
     return "—" if eps is None else str(eps)
+
+
+def _pct(part: int, whole: int) -> str:
+    value = rate(part, whole)
+    return "—" if value is None else f"{value:.0f}%"
+
+
+def _team_stats(summary: dict) -> None:
+    """A team's stats as a team: its maps and rounds, and how it does in the situations that
+    decide rounds. Never its players' numbers added together."""
+    s = summary
+    played = s["rounds_won"] + s["rounds_lost"]
+    m = st.columns(4)
+    m[0].metric("Maps", s["maps"])
+    m[1].metric("Map W–L", f"{s['maps_won']}–{s['maps_lost']}", help="Maps won–lost")
+    m[2].metric("Round W–L", f"{s['rounds_won']}–{s['rounds_lost']}")
+    m[3].metric("Round win %", _pct(s["rounds_won"], played))
+    stopped = s["defense_rounds"] - s["enemy_plants"]
+    # (situation, how many, out of how many): the man-down rows after the first count only the
+    # rounds where the team went down 2+ players
+    rows = [
+        ("Man down: went down 2+ players", s["man_down"], played),
+        ("Man down: got back to even numbers", s["man_down_even"], s["man_down"]),
+        ("Man down: won the round anyway", s["man_down_won"], s["man_down"]),
+        ("Attack: planted the defuser", s["plants"], s["attack_rounds"]),
+        ("Attack: won after planting", s["post_plant_won"], s["post_plant"]),
+        ("Defense: stopped the plant", stopped, s["defense_rounds"]),
+        ("Defense: won after their plant", s["retakes_won"], s["retakes"]),
+    ]
+    st.dataframe([{"Situation": name, "%": rate(part, whole), "Rounds": f"{part} of {whole}"}
+                  for name, part, whole in rows], hide_index=True,
+                 column_config={"%": st.column_config.ProgressColumn("%", format="%.0f%%", min_value=0, max_value=100)})
+    st.caption(f"{s['rounds']} rounds, each counted once for the whole team, even if a player disconnected. "
+               "Man down: the team had two or more fewer players alive than the other team. "
+               "**Got back to even** counts those rounds where both teams later had the same number alive, won or "
+               "not; **won the round anyway** counts those it won.")
+    if s["maps_without_rounds"]:
+        st.caption(f"{s['maps_without_rounds']} of these maps were read by an earlier version and their replays are "
+                   "gone, so their rounds aren't in the round numbers.")
 
 
 def _names(choice: str) -> list[str]:
@@ -58,9 +98,9 @@ build_tab, season_tab = st.tabs(["Build a team", "Season teams"])
 
 # ------------------------------------------------------------ build a team --
 with build_tab:
-    st.caption("Pick up to five players. Every match where enough of them played on the same side is found, "
-               "and each player's stats are added up across those matches. Teams you build are saved, and "
-               "**Ask** understands their names.")
+    st.caption("Pick up to five players. Every match where enough of them played on the same side is found: you "
+               "see how they do as a team, and each player's own stats. Teams you build are saved, and **Ask** "
+               "understands their names.")
     with open_stats_db() as db:
         source = current_source()
         if source and "error" not in source:
@@ -101,29 +141,27 @@ with build_tab:
                 st.warning(f"No match had {need}+ of {md(team)}'s players on the same side. Check the spelling of "
                            "the names, or lower the number above.")
             else:
-                wins, losses = report["wins"], report["losses"]
-                m = st.columns(4)
-                m[0].metric("Matches", len(report["matches"]))
-                m[1].metric("Record", f"{wins}–{losses}")
-                m[2].metric("Win %", f"{100 * wins / (wins + losses):.0f}%" if wins + losses else "—")
-                m[3].metric("Team EPS", _fmt_eps(report["eps"]), help="Rounds-weighted over the team's players")
+                _team_stats(report["summary"])
                 if report["missing"]:
                     st.warning(f"Not found in {md(team)}'s matches: {md(', '.join(report['missing']))}. "
                                "Check the spelling.")
                 table = []
                 for r in sorted(report["players"], key=lambda r: -(r["eps"] or 0)):
                     row = pro_league_row(
-                        team=0, player=r["name"], eps=int(r["eps"] or 0), kills=r["kills"], deaths=r["deaths"],
+                        team=0, player=r["name"], eps=round(r["eps"] or 0), kills=r["kills"], deaths=r["deaths"],
                         entry_kills=r["entry_kills"], entry_deaths=r["entry_deaths"], kost_pct=r["kost"] or 0,
                         kpr=r["kpr"] or 0, hs_pct=r["hs"] or 0, srv_pct=r["survival"] or 0, clutches=r["clutches"],
                         multikills=r["multikills"], objectives=r["objectives"], traded=r["traded"],
                         trade_kills=r["trade_kills"])
                     row.pop("Team")
-                    table.append({"Player": row.pop("Player"), "Matches": r["matches"], **row})
-                st.subheader(f"{md(team)}: player stats")
+                    player, eps = row.pop("Player"), row.pop("EPS")
+                    table.append({"Player": player, "Matches": r["matches"], "EPS": eps,
+                                  "All-time EPS": _fmt_eps(r["all_time_eps"]), **row})
+                st.subheader(f"{md(team)}: players")
                 st.dataframe(table, hide_index=True)
-                st.caption("Only stats from playing on this team count: a match where a player was on the other "
-                           "side isn't included for them. EPS is the rounds-weighted average of their per-match EPS.")
+                st.caption("**EPS** here is from the matches they played for this team; a match where a player was on "
+                           "the other side isn't included for them. **All-time EPS** is from every match they've "
+                           "played. Both are rounds-weighted averages of their per-match EPS.")
                 st.subheader("Matches")
                 matches = []
                 for r in report["matches"]:
@@ -154,19 +192,26 @@ with season_tab:
     if not season_teams:
         st.info("No team totals yet. Track a roster and save a match from Dashboard, or import a school roster first.")
     else:
+        # team stats and EPS are worked out again from the stats database, over the season's saved matches
+        season_ids = [m["match_id"] for m in saved]
+        with open_stats_db() as db:
+            summaries = {t.team: team_summary(db, t.players, 1, season_ids) for t in season_teams}
+            season_eps = eps_by_player(db, [p for t in season_teams for p in t.players], season_ids)
+            career = eps_by_player(db, [p for t in season_teams for p in t.players])
+            in_db = db.query(f"SELECT COUNT(*) AS n FROM matches WHERE match_id IN ({', '.join('?' * len(season_ids))})",
+                             season_ids)[0]["n"] if season_ids else 0
         selected = st.selectbox("Season team", [t.team for t in season_teams])
         team = next(t for t in season_teams if t.team == selected)
-        metric_columns = st.columns(6)
-        metric_columns[0].metric("Rounds", team.totals["rounds_played"])
-        metric_columns[1].metric("EPS", _fmt_eps(team.eps))
-        metric_columns[2].metric("K/D", f"{team.kd:.2f}")
-        metric_columns[3].metric("Entry +/-", f"{team.entry_diff:+d}")
-        metric_columns[4].metric("KOST avg", f"{team.kost_avg:.1f}%")
-        metric_columns[5].metric("Clutch success", "—" if team.clutch_success_rate is None else f"{team.clutch_success_rate:.0%}")
+        _team_stats(summaries[team.team])
+        if in_db < len(season_ids):
+            st.caption(f"{len(season_ids) - in_db} of the {len(season_ids)} matches saved to {md(season)} aren't in "
+                       "your stats database (their replays are gone), so these numbers leave them out.")
         st.subheader("Roster performance")
         st.dataframe([{
             "Player": player.username,
-            "EPS": _fmt_eps(player.eps),
+            # recalculated from the saved matches; the tracker's own number only if they're gone
+            "EPS": _fmt_eps(season_eps.get(player.username.casefold()) or player.eps),
+            "All-time EPS": _fmt_eps(career.get(player.username.casefold())),
             "Rounds": player.totals["rounds_played"],
             "K / D / A": f"{player.totals['kills']} / {player.totals['deaths']} / {player.totals['assists']}",
             "K/D": round(player.kd, 2),
@@ -178,17 +223,21 @@ with season_tab:
         st.subheader("All season teams")
         st.dataframe([{
             "Team": t.team,
-            "EPS": _fmt_eps(t.eps),
             "Players": len(t.players),
-            "Rounds": t.totals["rounds_played"],
-            "Kills": t.totals["kills"],
-            "Deaths": t.totals["deaths"],
-            "K/D": round(t.kd, 2),
-            "Entry +/-": t.entry_diff,
-            "KOST": f"{t.kost_avg:.1f}%",
+            "Maps": (s := summaries[t.team])["maps"],
+            "Map W–L": f"{s['maps_won']}–{s['maps_lost']}",
+            "Round W–L": f"{s['rounds_won']}–{s['rounds_lost']}",
+            "Round win %": _pct(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
+            "Man-down rounds": s["man_down"],
+            "Back to even %": _pct(s["man_down_even"], s["man_down"]),
+            "Man-down win %": _pct(s["man_down_won"], s["man_down"]),
+            "Plant %": _pct(s["plants"], s["attack_rounds"]),
+            "Plant stopped %": _pct(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
+            "Post-plant win %": _pct(s["post_plant_won"], s["post_plant"]),
+            "Retake win %": _pct(s["retakes_won"], s["retakes"]),
         } for t in season_teams], hide_index=True)
-        st.caption("EPS is the rounds-weighted average of each player's per-match EPS. "
-                   "Matches saved before EPS was recorded show —.")
+        st.caption("**EPS** is each player's over the matches saved to this season, and **All-time EPS** over "
+                   "every match they've played: both rounds-weighted averages of their per-match EPS.")
     if saved:
         with open_stats_db() as db:  # name the saved matches the way the rest of the app does
             known = {r["match_id"]: r for r in db.match_list()}

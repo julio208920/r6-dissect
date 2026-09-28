@@ -63,7 +63,8 @@ _WINS_R, _LOSS_R = _WON.format(v=1, unit=_R_UNIT), _WON.format(v=0, unit=_R_UNIT
 _HS = "100.0 * SUM(t.headshots) / NULLIF(SUM(t.kills), 0)"
 
 METRICS: dict[str, Metric] = {m.key: m for m in [
-    Metric("eps", "EPS", "EPS", "ROUND(100.0 * SUM(t.rating * t.rounds) / NULLIF(SUM(t.rounds), 0))", None, "eps"),
+    # not rounded here: SQLite rounds halves up, and the scoreboard's round() would show 112.5 as 112
+    Metric("eps", "EPS", "EPS", "100.0 * SUM(t.rating * t.rounds) / NULLIF(SUM(t.rounds), 0)", None, "eps"),
     Metric("kd", "K/D", "K/D", _KD.format(d="deaths"), _KD.format(d="died")),
     Metric("kills", "Kills", "kills", "SUM(t.kills)", "SUM(t.kills)", "count"),
     Metric("deaths", "Deaths", "deaths", "SUM(t.deaths)", "SUM(t.died)", "count", False),
@@ -783,7 +784,9 @@ def _fill_defaults(q: Query, vocab: Vocab) -> None:
             q.metrics = ["kd"]
         elif q.kind == "count":
             q.metrics = ["matches"]
-        elif q.kind == "compare" and q.compare in ("player", "team", "period") and not round_level:
+        elif q.kind == "compare" and q.compare == "team":
+            q.metrics = ["win_rate", "wins", "losses", "matches"]  # teams compared by their results
+        elif q.kind == "compare" and q.compare in ("player", "period") and not round_level:
             q.metrics = ["kd", "eps", "win_rate", "kpr", "hs", "kost", "survival", "entry", "clutches", "matches"]
         elif q.kind in ("summary", "compare"):
             q.metrics = list(SUMMARY_ROUND if round_level else SUMMARY_MATCH)
@@ -1184,7 +1187,45 @@ def _answer_value(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
     return Answer(True, understood, headline, columns, table, None, [], formats)
 
 
+def _answer_team_summary(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
+    """How a team is doing, as a team: maps, rounds, and the situations that decide rounds."""
+    level = q.level
+    sql = _SQL(q, vocab, level)  # the team's side of each match, within the question's filters
+    ids = [r["match_id"] for r in db.query(f"SELECT DISTINCT t.match_id FROM {sql.from_}{sql.where_sql()}",
+                                           sql.params)]
+    understood = f"How {q.team} is doing as a team{_filters_text(q)}"
+    if not ids:
+        return _no_matches(q, vocab, understood)
+    s = team_summary(db, vocab.rosters.get(q.team, []), q.team_min or 3, ids, side=q.side)
+    row = {"Maps": s["maps"], "Maps won": s["maps_won"], "Maps lost": s["maps_lost"],
+           "Rounds won": s["rounds_won"], "Rounds lost": s["rounds_lost"],
+           "Round win %": rate(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
+           "Man-down rounds": s["man_down"],
+           "Man-down back to even %": rate(s["man_down_even"], s["man_down"]),
+           "Man-down win %": rate(s["man_down_won"], s["man_down"]),
+           "Plant %": rate(s["plants"], s["attack_rounds"]),
+           "Plant stopped %": rate(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
+           "Post-plant win %": rate(s["post_plant_won"], s["post_plant"]),
+           "Retake win %": rate(s["retakes_won"], s["retakes"])}
+    row = {k: _value(v, "pct") if k.endswith("%") else v for k, v in row.items()}
+    headline = (f"{q.team}: {_plural(s['maps'], 'map')}, {s['maps_won']}–{s['maps_lost']}; rounds "
+                f"{s['rounds_won']}–{s['rounds_lost']} ({fmt(row['Round win %'], 'pct')} won); of the "
+                f"{_plural(s['man_down'], 'round')} it went down 2+ players, it got back to even in "
+                f"{s['man_down_even']} and won {s['man_down_won']}{_filters_text(q)}.")
+    formats = {k: "pct" if k.endswith("%") else "count" for k in row}
+    return Answer(True, understood, headline, list(row), [row], None, [], formats)
+
+
 def _answer_summary(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
+    if q.who == "team" and q.team:  # a team's numbers are its own, never its players' added up
+        answer = _answer_team_summary(db, q, vocab)
+        if answer.ok and not q.maps and q.level == "match":
+            maps = _aggregate(db, replace(q, kind="rank", min_matches=2, order="best", group="map", notes=[]),
+                              vocab, ["win_rate"], "map", limit=1)
+            if maps and maps[0].get("win_rate") is not None:
+                answer.notes.append(f"Best map: {maps[0]['key']} ({fmt(maps[0]['win_rate'], 'pct')} wins over "
+                                    f"{_plural(maps[0]['matches'], 'match')}).")
+        return answer
     answer = _answer_value(db, q, vocab)
     if not answer.ok:
         return answer
@@ -1455,15 +1496,81 @@ TEAM_PLAYER_METRICS = ["eps", "kills", "deaths", "entry_kills", "entry_deaths", 
                        "clutches", "multikills", "objectives", "traded", "trade_kills"]
 
 
+def team_summary(db: StatsDB, players: list[str], min_players: int = 3, match_ids: list[str] | None = None,
+                 side: str | None = None) -> dict[str, Any]:
+    """A team's stats as a team, never added up from its players: the maps it played (at least
+    min_players of `players` on one side, the side with the most of them) and its record, and from
+    those maps' rounds, each counted once for the whole team:
+    - rounds won and lost;
+    - man down: rounds where it was two or more players down at some point, and of those, how many
+      it brought back to even numbers (won or not) and how many it won;
+    - on attack, how often it planted the defuser, and won once it was down (post-plant);
+    - on defense, how often it stopped the plant, and won once the defuser was down (retake).
+    match_ids limits it to those matches; side to attack or defense rounds."""
+    keys = list(dict.fromkeys(p.strip().casefold() for p in players if p.strip()))
+    empty = dict.fromkeys(("maps", "maps_won", "maps_lost", "rounds", "rounds_won", "rounds_lost", "man_down",
+                           "man_down_even", "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won",
+                           "defense_rounds", "enemy_plants", "retakes", "retakes_won", "maps_without_rounds"), 0)
+    if not keys or match_ids == []:
+        return empty
+    only = f" AND match_id IN ({', '.join('?' * len(match_ids))})" if match_ids is not None else ""
+    sides = (f"SELECT match_id, team FROM (SELECT match_id, team, COUNT(*) AS n, ROW_NUMBER() OVER (PARTITION BY "
+             f"match_id ORDER BY COUNT(*) DESC, team) AS pick FROM match_players WHERE player_key IN "
+             f"({', '.join('?' * len(keys))}){only} GROUP BY match_id, team) WHERE pick = 1 AND n >= ?")
+    params = keys + list(match_ids or []) + [max(1, min(min_players, len(keys)))]
+    maps = db.query(
+        f"WITH sides AS ({sides}) SELECT COUNT(*) AS maps,"
+        " SUM(CASE WHEN s.team = 0 THEN m.score0 > m.score1 ELSE m.score1 > m.score0 END) AS maps_won,"
+        " SUM(CASE WHEN s.team = 0 THEN m.score0 < m.score1 ELSE m.score1 < m.score0 END) AS maps_lost,"
+        " SUM(NOT EXISTS (SELECT 1 FROM team_rounds r WHERE r.match_id = s.match_id)) AS maps_without_rounds"
+        " FROM sides s JOIN matches m ON m.match_id = s.match_id", params)[0]
+    rounds = db.query(
+        f"WITH sides AS ({sides}) SELECT COUNT(*) AS rounds, SUM(r.won = 1) AS rounds_won,"
+        " SUM(r.won = 0) AS rounds_lost,"
+        " SUM(r.man_down AND r.won IS NOT NULL) AS man_down, SUM(r.man_down AND r.won = 1) AS man_down_won,"
+        " SUM(r.man_down AND r.back_to_even AND r.won IS NOT NULL) AS man_down_even,"
+        " SUM(r.side = 'attack') AS attack_rounds, SUM(r.side = 'attack' AND r.planted) AS plants,"
+        " SUM(r.side = 'attack' AND r.planted AND r.won IS NOT NULL) AS post_plant,"
+        " SUM(r.side = 'attack' AND r.planted AND r.won = 1) AS post_plant_won,"
+        " SUM(r.side = 'defense') AS defense_rounds, SUM(r.side = 'defense' AND r.planted) AS enemy_plants,"
+        " SUM(r.side = 'defense' AND r.planted AND r.won IS NOT NULL) AS retakes,"
+        " SUM(r.side = 'defense' AND r.planted AND r.won = 1) AS retakes_won"
+        " FROM sides s JOIN team_rounds r ON r.match_id = s.match_id AND r.team = s.team"
+        + (" WHERE r.side = ?" if side else ""), params + ([side] if side else []))[0]
+    return {k: int((maps | rounds).get(k) or 0) for k in empty}
+
+
+def rate(part: int, whole: int) -> float | None:
+    """part of whole as a percentage, or None when there's nothing to go on."""
+    return 100 * part / whole if whole else None
+
+
+def eps_by_player(db: StatsDB, players: list[str], match_ids: list[str] | None = None) -> dict[str, int | None]:
+    """Each player's EPS, rounds-weighted like EPS everywhere, by player key: over every match
+    they played (their all-time EPS), or only over match_ids."""
+    keys = list(dict.fromkeys(p.strip().casefold() for p in players if p.strip()))
+    if not keys or match_ids == []:
+        return dict.fromkeys(keys)
+    only = f" AND match_id IN ({', '.join('?' * len(match_ids))})" if match_ids is not None else ""
+    rows = db.query(f"SELECT player_key, {METRICS['eps'].match_sql} AS eps FROM match_players t "
+                    f"WHERE player_key IN ({', '.join('?' * len(keys))}){only} GROUP BY player_key",
+                    keys + list(match_ids or []))
+    found = {r["player_key"]: _value(r["eps"], "eps") for r in rows}
+    return {k: found.get(k) for k in keys}
+
+
 def team_report(db: StatsDB, team: str, min_players: int = 3) -> dict[str, Any]:
     """Build a team: a saved team's matches (at least min_players of it on one side, the side with
-    the most of them), its record and EPS, and each player's stats from playing for it."""
+    the most of them), its stats as a team (team_summary), and each player's own stats from
+    playing for it, with their all-time EPS."""
     vocab = Vocab.from_db(db)
     q = Query(kind="rank", who="team", team=team, team_min=min_players, group="player")
     players = _aggregate(db, q, vocab, TEAM_PLAYER_METRICS, "player", minimums=False)
+    roster = db.rosters().get(team, [])
+    career = eps_by_player(db, roster)
     for r in players:
         r["name"] = vocab.players.get(r["key"], r["key"])
-    totals = _aggregate(db, replace(q, kind="value", group=None), vocab, ["wins", "losses", "eps"], None)[0]
+        r["all_time_eps"] = career.get(r["key"])
     sql = _SQL(q, vocab, "match")
     matches = db.query(
         "SELECT t.match_id, MAX(m.source) AS source, MAX(m.played_at) AS played_at, MAX(m.map) AS map,"
@@ -1471,9 +1578,9 @@ def team_report(db: StatsDB, team: str, min_players: int = 3) -> dict[str, Any]:
         f" GROUP_CONCAT(t.player, ', ') AS players FROM {sql.from_}{sql.where_sql()}"
         " GROUP BY t.match_id ORDER BY MAX(m.played_at) DESC", sql.params)
     found = {r["key"] for r in players}
-    return {"team": team, "players": players, "matches": matches, "wins": totals["wins"],
-            "losses": totals["losses"], "eps": _value(totals["eps"], "eps"),
-            "missing": [p for p in db.rosters().get(team, []) if p.casefold() not in found]}
+    return {"team": team, "players": players, "matches": matches,
+            "summary": team_summary(db, roster, min_players),
+            "missing": [p for p in roster if p.casefold() not in found]}
 
 
 def operator_table(db: StatsDB, player: str) -> list[dict[str, Any]]:
