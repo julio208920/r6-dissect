@@ -116,9 +116,10 @@ def team_truth(roster, min_players):
 def team_rounds_truth(roster, min_players):
     """A team's own stats, worked out here from the matches themselves: every round of every map it
     played counts once for the team; it was man down when, with both sides still alive, it had two
-    or more fewer players standing."""
+    or more fewer players standing, and got back to even when both later had as many standing."""
     t = dict.fromkeys(("maps", "maps_won", "maps_lost", "rounds", "rounds_won", "rounds_lost", "man_down",
-                       "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won", "defense_rounds",
+                       "man_down_even", "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won",
+                       "defense_rounds",
                        "enemy_plants", "retakes", "retakes_won", "maps_without_rounds"), 0)
     for name, team in team_truth(roster, min_players)[0]:
         m = MATCHES[name]
@@ -129,12 +130,13 @@ def team_rounds_truth(roster, min_players):
         t["maps_lost"] += ours < theirs
         for rnd in m["rounds"]:
             standing = [sum(side_of[n] == side for n in rnd["players"]) for side in (0, 1)]
-            down = False
+            down = even = False
             for e in rnd["events"]:
                 if e["type"] == "death":
                     standing[side_of[e["actor"]]] -= 1
-                    if standing[0] and standing[1] and standing[team] - standing[1 - team] <= -2:
-                        down = True
+                    if standing[0] and standing[1]:
+                        even = even or (down and standing[0] == standing[1])
+                        down = down or standing[team] - standing[1 - team] <= -2
             won = rnd["winner_team"] == team
             planted = any(e["type"] == "plant" for e in rnd["events"])
             attacking = rnd["attack_team"] == team
@@ -143,6 +145,7 @@ def team_rounds_truth(roster, min_players):
             t["rounds_lost"] += not won
             t["man_down"] += down
             t["man_down_won"] += down and won
+            t["man_down_even"] += even
             key = "attack_rounds" if attacking else "defense_rounds"
             t[key] += 1
             if planted and attacking:
@@ -453,10 +456,13 @@ class TestTeamsAndComparisons(EngineTest):
         row = answer.rows[0]
         self.assertEqual((row["Maps"], row["Maps won"], row["Maps lost"], row["Rounds won"], row["Rounds lost"]),
                          (team["maps"], team["maps_won"], team["maps_lost"], team["rounds_won"], team["rounds_lost"]))
+        self.assertEqual(row["Man-down rounds"], team["man_down"])
+        self.assertEqual(row["Man-down back to even %"], round(100 * team["man_down_even"] / team["man_down"], 1))
         self.assertEqual(row["Man-down win %"], round(100 * team["man_down_won"] / team["man_down"], 1))
         self.assertNotIn("EPS", row)
         self.assertNotIn("K/D", row)
-        self.assertIn(f"won {team['man_down_won']} of {team['man_down']} rounds when 2+ players down", answer.headline)
+        self.assertIn(f"of the {team['man_down']} rounds it went 2+ players down, it got back to even in "
+                      f"{team['man_down_even']} and won {team['man_down_won']}", answer.headline)
 
     def test_two_teams_are_compared_by_their_results(self):
         vocab = replace(self.vocab, rosters={"tag": ["alpha.tag", "bravo.tag"], "rivals": ["foxtrot", "golf"]})

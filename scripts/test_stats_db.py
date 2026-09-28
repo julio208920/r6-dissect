@@ -142,6 +142,9 @@ class TestImport(unittest.TestCase):
         self.assertEqual([rows[r, 0][3] for r in range(1, 7)], [1, 1, 0, 0, 1, 0])  # team 0 man down
         self.assertEqual([rows[r, 1][3] for r in range(1, 7)], [0, 1, 0, 0, 0, 0])  # 1v3 during the comeback
         self.assertEqual([rows[r, 0][2] for r in range(1, 7)], [0, 0, 0, 1, 1, 0])  # planted
+        # back to even after being man down: 3v5 back to 3v3 in the comeback; team 1 went 1v3 and was wiped out
+        self.assertEqual([rows[r, 0][4] for r in range(1, 7)], [0, 1, 0, 0, 0, 0])
+        self.assertEqual([rows[r, 1][4] for r in range(1, 7)], [0, 0, 0, 0, 0, 0])
         self.assertEqual(rows[1, 0][:2], ("attack", 0))
         self.assertEqual(rows[1, 1][:2], ("defense", 1))
         self.assertEqual(rows[6, 0][:2], (None, None))

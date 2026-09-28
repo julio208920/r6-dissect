@@ -12,8 +12,9 @@ Tables (SQLite, in the same file as the season tracker's tables):
                    and who recorded the replay ("you")
     match_players  one per player per match: the scoreboard's numbers, EPS rating, won or lost
     round_players  one per player per round: operator, side, site, kills, died, round won
-    team_rounds    one per team per round: side, round won, bomb planted, and whether the team
-                   was ever two or more players down. Every round of a match counts for both
+    team_rounds    one per team per round: side, round won, bomb planted, whether the team was
+                   ever two or more players down, and whether it then got back to even numbers.
+                   Every round of a match counts for both
                    teams, so a player who disconnected doesn't take rounds away from their team.
     rosters        the teams built on the Team page: team name -> players
     skipped        replays that couldn't be read, so they aren't retried until they change (or the
@@ -115,6 +116,7 @@ CREATE TABLE IF NOT EXISTS team_rounds (
     won      INTEGER,           -- 1 round won, 0 lost, NULL if the replay doesn't say
     planted  INTEGER NOT NULL,  -- the defuser was planted this round (by the attackers)
     man_down INTEGER NOT NULL,  -- this team was two or more players down at some point
+    back_to_even INTEGER NOT NULL,  -- ...and then got back to the same number alive as the other team
     PRIMARY KEY (match_id, round, team)
 );
 
@@ -153,7 +155,7 @@ _INSERT_PLAYER = _insert("match_players", "match_id player_key player team won r
 _INSERT_ROUND = _insert("round_players", "match_id round player_key player team side operator site won kills "
                                          "died headshots assists entry_kill entry_death traded trade_kills "
                                          "planted defused kost clutch")
-_INSERT_TEAM_ROUND = _insert("team_rounds", "match_id round team side won planted man_down")
+_INSERT_TEAM_ROUND = _insert("team_rounds", "match_id round team side won planted man_down back_to_even")
 DATA_VERSION = 2  # 2: team_rounds. Matches read by an earlier version are read again, if their replays remain
 # how a round ends once the defuser is down, even when the kill feed missed the plant itself
 _PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser"}
@@ -195,21 +197,24 @@ def nice_day(stamp: str | None) -> str:
     return f"{d:%b} {d.day}" + (f", {d.year}" if d.year != datetime.now().year else "")
 
 
-def team_rounds(match: dict[str, Any]) -> list[tuple[int, int, str | None, int | None, int, int]]:
-    """(round, team, side, won, planted, man_down) for both teams in every round of a match.
-    Man down: while both teams still had someone alive, the team had two or more fewer players
-    alive than the other one (from the start, if it began a round short)."""
+def team_rounds(match: dict[str, Any]) -> list[tuple[int, int, str | None, int | None, int, int, int]]:
+    """(round, team, side, won, planted, man_down, back_to_even) for both teams in every round of a
+    match. Man down: while both teams still had someone alive, the team had two or more fewer
+    players alive than the other one (from the start, if it began a round short). Back to even:
+    after that, the two teams had the same number alive again, both still in the round."""
     team_of = {p["name"]: p["team"] for p in match.get("players") or []}
     rows = []
     for index, rnd in enumerate(match.get("rounds") or [], 1):
         present = [n for n in (rnd.get("players") or team_of) if n in team_of]
         alive = {side: {n for n in present if team_of[n] == side} for side in (0, 1)}
         down = {0: False, 1: False}
+        even = {0: False, 1: False}
         planted = rnd.get("win_condition") in _PLANTED_ENDINGS
 
         def check() -> None:
             if alive[0] and alive[1]:  # once a team is wiped out the round is over
                 for side in (0, 1):
+                    even[side] = even[side] or (down[side] and len(alive[side]) == len(alive[1 - side]))
                     down[side] = down[side] or len(alive[side]) <= len(alive[1 - side]) - 2
 
         check()
@@ -222,7 +227,8 @@ def team_rounds(match: dict[str, Any]) -> list[tuple[int, int, str | None, int |
         attack, winner = rnd.get("attack_team"), rnd.get("winner_team")
         for team in (0, 1):
             rows.append((index, team, None if attack not in (0, 1) else ("attack" if team == attack else "defense"),
-                         None if winner not in (0, 1) else int(winner == team), int(planted), int(down[team])))
+                         None if winner not in (0, 1) else int(winner == team), int(planted), int(down[team]),
+                         int(even[team])))
     return rows
 
 

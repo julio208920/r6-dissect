@@ -1200,6 +1200,8 @@ def _answer_team_summary(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
     row = {"Maps": s["maps"], "Maps won": s["maps_won"], "Maps lost": s["maps_lost"],
            "Rounds won": s["rounds_won"], "Rounds lost": s["rounds_lost"],
            "Round win %": rate(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
+           "Man-down rounds": s["man_down"],
+           "Man-down back to even %": rate(s["man_down_even"], s["man_down"]),
            "Man-down win %": rate(s["man_down_won"], s["man_down"]),
            "Plant %": rate(s["plants"], s["attack_rounds"]),
            "Plant stopped %": rate(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
@@ -1207,8 +1209,9 @@ def _answer_team_summary(db: StatsDB, q: Query, vocab: Vocab) -> Answer:
            "Retake win %": rate(s["retakes_won"], s["retakes"])}
     row = {k: _value(v, "pct") if k.endswith("%") else v for k, v in row.items()}
     headline = (f"{q.team}: {_plural(s['maps'], 'map')}, {s['maps_won']}–{s['maps_lost']}; rounds "
-                f"{s['rounds_won']}–{s['rounds_lost']} ({fmt(row['Round win %'], 'pct')} won); won "
-                f"{s['man_down_won']} of {_plural(s['man_down'], 'round')} when 2+ players down{_filters_text(q)}.")
+                f"{s['rounds_won']}–{s['rounds_lost']} ({fmt(row['Round win %'], 'pct')} won); of the "
+                f"{_plural(s['man_down'], 'round')} it went 2+ players down, it got back to even in "
+                f"{s['man_down_even']} and won {s['man_down_won']}{_filters_text(q)}.")
     formats = {k: "pct" if k.endswith("%") else "count" for k in row}
     return Answer(True, understood, headline, list(row), [row], None, [], formats)
 
@@ -1499,13 +1502,14 @@ def team_summary(db: StatsDB, players: list[str], min_players: int = 3, match_id
     min_players of `players` on one side, the side with the most of them) and its record, and from
     those maps' rounds, each counted once for the whole team:
     - rounds won and lost;
-    - man down: rounds where it was two or more players down at some point, and how many it won;
+    - man down: rounds where it was two or more players down at some point, and of those, how many
+      it brought back to even numbers (won or not) and how many it won;
     - on attack, how often it planted the defuser, and won once it was down (post-plant);
     - on defense, how often it stopped the plant, and won once the defuser was down (retake).
     match_ids limits it to those matches; side to attack or defense rounds."""
     keys = list(dict.fromkeys(p.strip().casefold() for p in players if p.strip()))
     empty = dict.fromkeys(("maps", "maps_won", "maps_lost", "rounds", "rounds_won", "rounds_lost", "man_down",
-                           "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won",
+                           "man_down_even", "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won",
                            "defense_rounds", "enemy_plants", "retakes", "retakes_won", "maps_without_rounds"), 0)
     if not keys or match_ids == []:
         return empty
@@ -1524,6 +1528,7 @@ def team_summary(db: StatsDB, players: list[str], min_players: int = 3, match_id
         f"WITH sides AS ({sides}) SELECT COUNT(*) AS rounds, SUM(r.won = 1) AS rounds_won,"
         " SUM(r.won = 0) AS rounds_lost,"
         " SUM(r.man_down AND r.won IS NOT NULL) AS man_down, SUM(r.man_down AND r.won = 1) AS man_down_won,"
+        " SUM(r.man_down AND r.back_to_even AND r.won IS NOT NULL) AS man_down_even,"
         " SUM(r.side = 'attack') AS attack_rounds, SUM(r.side = 'attack' AND r.planted) AS plants,"
         " SUM(r.side = 'attack' AND r.planted AND r.won IS NOT NULL) AS post_plant,"
         " SUM(r.side = 'attack' AND r.planted AND r.won = 1) AS post_plant_won,"

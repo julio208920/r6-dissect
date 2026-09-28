@@ -86,7 +86,9 @@ The other pages work from every match, not just the one on the Dashboard:
   - **the team's own stats**, never its players' numbers added together:
     - maps played, map record, and rounds won and lost. A round counts once for
       the whole team, even if a player disconnected during it;
-    - **man down**: rounds won after being two or more players down;
+    - **man down**: how often the team went two or more players down, and of
+      those rounds, how often it got back to even numbers (win or lose) and
+      how often it won;
     - on **attack**, how often it plants the defuser and wins once it's down;
     - on **defense**, how often it stops the plant and wins after a plant;
   - **each player's own stats** from playing for this team, with their EPS for

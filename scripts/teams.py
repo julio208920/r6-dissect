@@ -34,26 +34,31 @@ def _team_stats(summary: dict) -> None:
     """A team's stats as a team: its maps and rounds, and how it does in the situations that
     decide rounds. Never its players' numbers added together."""
     s = summary
+    played = s["rounds_won"] + s["rounds_lost"]
     m = st.columns(4)
-    m[0].metric("Maps played", s["maps"])
-    m[1].metric("Map record", f"{s['maps_won']}–{s['maps_lost']}", help="Maps won–lost")
-    m[2].metric("Rounds won–lost", f"{s['rounds_won']}–{s['rounds_lost']}",
-                help=f"{s['rounds']} rounds played. A round counts once for the whole team, even if a player "
-                     "disconnected during it.")
-    m[3].metric("Round win %", _pct(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]))
+    m[0].metric("Maps", s["maps"])
+    m[1].metric("Map W–L", f"{s['maps_won']}–{s['maps_lost']}", help="Maps won–lost")
+    m[2].metric("Round W–L", f"{s['rounds_won']}–{s['rounds_lost']}")
+    m[3].metric("Round win %", _pct(s["rounds_won"], played))
     stopped = s["defense_rounds"] - s["enemy_plants"]
-    st.dataframe([
-        {"Situation": "Man down: won the round after being 2+ players down",
-         "Result": f"{s['man_down_won']} of {s['man_down']} rounds", "Rate": _pct(s["man_down_won"], s["man_down"])},
-        {"Situation": "Attack: planted the defuser",
-         "Result": f"{s['plants']} of {s['attack_rounds']} rounds", "Rate": _pct(s["plants"], s["attack_rounds"])},
-        {"Situation": "Attack: won once the defuser was down (stopped the disable)",
-         "Result": f"{s['post_plant_won']} of {s['post_plant']} rounds", "Rate": _pct(s["post_plant_won"], s["post_plant"])},
-        {"Situation": "Defense: stopped the plant",
-         "Result": f"{stopped} of {s['defense_rounds']} rounds", "Rate": _pct(stopped, s["defense_rounds"])},
-        {"Situation": "Defense: won after the defuser was planted (disabled it or ran out the clock)",
-         "Result": f"{s['retakes_won']} of {s['retakes']} rounds", "Rate": _pct(s["retakes_won"], s["retakes"])},
-    ], hide_index=True, column_config={"Situation": st.column_config.TextColumn(width="large")})
+    # (situation, how many, out of how many): the man-down rows after the first count only the
+    # rounds where the team went 2+ players down
+    rows = [
+        ("Man down: went 2+ players down", s["man_down"], played),
+        ("Man down: got back to even numbers", s["man_down_even"], s["man_down"]),
+        ("Man down: won the round anyway", s["man_down_won"], s["man_down"]),
+        ("Attack: planted the defuser", s["plants"], s["attack_rounds"]),
+        ("Attack: won after planting", s["post_plant_won"], s["post_plant"]),
+        ("Defense: stopped the plant", stopped, s["defense_rounds"]),
+        ("Defense: won after their plant", s["retakes_won"], s["retakes"]),
+    ]
+    st.dataframe([{"Situation": name, "%": rate(part, whole), "Rounds": f"{part} of {whole}"}
+                  for name, part, whole in rows], hide_index=True,
+                 column_config={"%": st.column_config.ProgressColumn("%", format="%.0f%%", min_value=0, max_value=100)})
+    st.caption(f"{s['rounds']} rounds, each counted once for the whole team, even if a player disconnected. "
+               "Man down: the team had two or more fewer players alive than the other team. "
+               "**Got back to even** counts those rounds where both teams later had the same number alive, won or "
+               "not; **won the round anyway** counts those it won.")
     if s["maps_without_rounds"]:
         st.caption(f"{s['maps_without_rounds']} of these maps were read by an earlier version and their replays are "
                    "gone, so their rounds aren't in the round numbers.")
@@ -220,9 +225,11 @@ with season_tab:
             "Team": t.team,
             "Players": len(t.players),
             "Maps": (s := summaries[t.team])["maps"],
-            "Map record": f"{s['maps_won']}–{s['maps_lost']}",
-            "Rounds won–lost": f"{s['rounds_won']}–{s['rounds_lost']}",
+            "Map W–L": f"{s['maps_won']}–{s['maps_lost']}",
+            "Round W–L": f"{s['rounds_won']}–{s['rounds_lost']}",
             "Round win %": _pct(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
+            "Man-down rounds": s["man_down"],
+            "Back to even %": _pct(s["man_down_even"], s["man_down"]),
             "Man-down win %": _pct(s["man_down_won"], s["man_down"]),
             "Plant %": _pct(s["plants"], s["attack_rounds"]),
             "Plant stopped %": _pct(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
