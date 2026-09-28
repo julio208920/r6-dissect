@@ -80,13 +80,23 @@ The other pages work from every match, not just the one on the Dashboard:
   Select a match to open its scoreboards on the Dashboard.
 - **Team Analytics > Build a team**: up to five players, filled in with you and
   the four teammates you play with most. Every match where enough of them (you
-  choose how many) played on the same side is found, and each player's stats
-  are added up across those matches, with the team's record and EPS. Teams are
-  saved: pick one again from the **Team** list, and Ask knows its name ("How is
-  Varsity doing?").
+  choose how many) played on the same side is found. Teams are saved: pick one
+  again from the **Team** list, and Ask knows its name ("How is Varsity
+  doing?"). You see:
+  - **the team's own stats**, never its players' numbers added together:
+    - maps played, map record, and rounds won and lost. A round counts once for
+      the whole team, even if a player disconnected during it;
+    - **man down**: rounds won after being two or more players down;
+    - on **attack**, how often it plants the defuser and wins once it's down;
+    - on **defense**, how often it stops the plant and wins after a plant;
+  - **each player's own stats** from playing for this team, with their EPS for
+    this team and their **all-time EPS** over every match they've played.
 - **Team Analytics > Season teams** and the **Season tracker** below a loaded
   scoreboard: choose a roster and record matches into season totals. Only the
-  players you track are saved, and duplicate rounds are ignored.
+  players you track are saved, and duplicate rounds are ignored. Each season
+  team gets the same team stats, from the matches saved to the season, and
+  each player's EPS is recalculated from those matches, alongside their
+  all-time EPS.
 - **Operator Analytics**: each operator's rounds, round win rate, K/D, KPR and
   headshot rate over **All matches** (for any player), or picks and site win
   rates for every player in **This match** (the Dashboard's match, or your

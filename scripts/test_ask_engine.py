@@ -113,6 +113,49 @@ def team_truth(roster, min_players):
     return matches, per
 
 
+def team_rounds_truth(roster, min_players):
+    """A team's own stats, worked out here from the matches themselves: every round of every map it
+    played counts once for the team; it was man down when, with both sides still alive, it had two
+    or more fewer players standing."""
+    t = dict.fromkeys(("maps", "maps_won", "maps_lost", "rounds", "rounds_won", "rounds_lost", "man_down",
+                       "man_down_won", "attack_rounds", "plants", "post_plant", "post_plant_won", "defense_rounds",
+                       "enemy_plants", "retakes", "retakes_won", "maps_without_rounds"), 0)
+    for name, team in team_truth(roster, min_players)[0]:
+        m = MATCHES[name]
+        side_of = {p["name"]: p["team"] for p in m["players"]}
+        ours, theirs = m["final_score"][team], m["final_score"][1 - team]
+        t["maps"] += 1
+        t["maps_won"] += ours > theirs
+        t["maps_lost"] += ours < theirs
+        for rnd in m["rounds"]:
+            standing = [sum(side_of[n] == side for n in rnd["players"]) for side in (0, 1)]
+            down = False
+            for e in rnd["events"]:
+                if e["type"] == "death":
+                    standing[side_of[e["actor"]]] -= 1
+                    if standing[0] and standing[1] and standing[team] - standing[1 - team] <= -2:
+                        down = True
+            won = rnd["winner_team"] == team
+            planted = any(e["type"] == "plant" for e in rnd["events"])
+            attacking = rnd["attack_team"] == team
+            t["rounds"] += 1
+            t["rounds_won"] += won
+            t["rounds_lost"] += not won
+            t["man_down"] += down
+            t["man_down_won"] += down and won
+            key = "attack_rounds" if attacking else "defense_rounds"
+            t[key] += 1
+            if planted and attacking:
+                t["plants"] += 1
+                t["post_plant"] += 1
+                t["post_plant_won"] += won
+            elif planted:
+                t["enemy_plants"] += 1
+                t["retakes"] += 1
+                t["retakes_won"] += won
+    return t
+
+
 def kd(s):
     return s.kills / s.deaths if s.deaths else float(s.kills)
 
@@ -404,9 +447,23 @@ class TestTeamsAndComparisons(EngineTest):
                    for n, side in matches]
         record = self.ask("TAG record")
         self.assertEqual((record.rows[0]["Wins"], record.rows[0]["Losses"]), (results.count(True), results.count(False)))
-        rounds = sum(t.rounds for t in per.values())
-        self.assertEqual(self.ask("how is TAG doing").rows[0]["EPS"],
-                         round(100 * sum(t.weighted_rating for t in per.values()) / rounds))
+        # how the team is doing is its own numbers, never its players' added up
+        team = team_rounds_truth(["Alpha.TAG", "Bravo.TAG", "Charlie"], 3)
+        answer = self.ask("how is TAG doing")
+        row = answer.rows[0]
+        self.assertEqual((row["Maps"], row["Maps won"], row["Maps lost"], row["Rounds won"], row["Rounds lost"]),
+                         (team["maps"], team["maps_won"], team["maps_lost"], team["rounds_won"], team["rounds_lost"]))
+        self.assertEqual(row["Man-down win %"], round(100 * team["man_down_won"] / team["man_down"], 1))
+        self.assertNotIn("EPS", row)
+        self.assertNotIn("K/D", row)
+        self.assertIn(f"won {team['man_down_won']} of {team['man_down']} rounds when 2+ players down", answer.headline)
+
+    def test_two_teams_are_compared_by_their_results(self):
+        vocab = replace(self.vocab, rosters={"tag": ["alpha.tag", "bravo.tag"], "rivals": ["foxtrot", "golf"]})
+        vocab.build_aliases()
+        q = interpret("compare tag and rivals", vocab, NOW)
+        self.assertEqual((q.kind, q.compare), ("compare", "team"))
+        self.assertEqual(q.metrics, ["win_rate", "wins", "losses", "matches"])  # not the players' K/D or EPS
 
     def test_build_a_team_page_numbers(self):
         for need in (1, 2, 3):
@@ -417,10 +474,12 @@ class TestTeamsAndComparisons(EngineTest):
                 got = {r["name"]: r for r in report["players"]}
                 self.assertEqual(set(got), set(per))
                 for p, t in per.items():
-                    self.assertEqual((got[p]["kills"], got[p]["deaths"], int(got[p]["eps"])), (t.kills, t.deaths, t.eps))
-                rounds = sum(t.rounds for t in per.values())
-                self.assertEqual(report["eps"], round(100 * sum(t.weighted_rating for t in per.values()) / rounds))
-                self.assertIsInstance(report["eps"], int)  # shown as "97", like EPS everywhere else
+                    self.assertEqual((got[p]["kills"], got[p]["deaths"], round(got[p]["eps"])), (t.kills, t.deaths, t.eps))
+                self.assertEqual(report["summary"], team_rounds_truth(["Alpha.TAG", "Bravo.TAG", "Charlie"], need))
+                self.assertNotIn("eps", report)  # no team EPS: a team's numbers are its own
+                career = truth(["Alpha.TAG", "Bravo.TAG", "Charlie"])  # every match, not just this team's
+                self.assertEqual({r["name"]: r["all_time_eps"] for r in report["players"]},
+                                 {p: t.eps for p, t in career.items()})
                 self.assertEqual(report["missing"], [])
 
     def test_compare_two_players(self):

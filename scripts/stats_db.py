@@ -12,6 +12,9 @@ Tables (SQLite, in the same file as the season tracker's tables):
                    and who recorded the replay ("you")
     match_players  one per player per match: the scoreboard's numbers, EPS rating, won or lost
     round_players  one per player per round: operator, side, site, kills, died, round won
+    team_rounds    one per team per round: side, round won, bomb planted, and whether the team
+                   was ever two or more players down. Every round of a match counts for both
+                   teams, so a player who disconnected doesn't take rounds away from their team.
     rosters        the teams built on the Team page: team name -> players
     skipped        replays that couldn't be read, so they aren't retried until they change (or the
                    app is updated: a newer version may read them)
@@ -104,6 +107,17 @@ CREATE TABLE IF NOT EXISTS round_players (
 );
 CREATE INDEX IF NOT EXISTS round_players_player ON round_players (player_key);
 
+CREATE TABLE IF NOT EXISTS team_rounds (
+    match_id TEXT NOT NULL,
+    round    INTEGER NOT NULL,  -- 1, 2, ... in play order
+    team     INTEGER NOT NULL,
+    side     TEXT,              -- 'attack' or 'defense'
+    won      INTEGER,           -- 1 round won, 0 lost, NULL if the replay doesn't say
+    planted  INTEGER NOT NULL,  -- the defuser was planted this round (by the attackers)
+    man_down INTEGER NOT NULL,  -- this team was two or more players down at some point
+    PRIMARY KEY (match_id, round, team)
+);
+
 CREATE TABLE IF NOT EXISTS rosters (
     team       TEXT NOT NULL COLLATE NOCASE,
     player     TEXT NOT NULL,
@@ -139,6 +153,10 @@ _INSERT_PLAYER = _insert("match_players", "match_id player_key player team won r
 _INSERT_ROUND = _insert("round_players", "match_id round player_key player team side operator site won kills "
                                          "died headshots assists entry_kill entry_death traded trade_kills "
                                          "planted defused kost clutch")
+_INSERT_TEAM_ROUND = _insert("team_rounds", "match_id round team side won planted man_down")
+DATA_VERSION = 2  # 2: team_rounds. Matches read by an earlier version are read again, if their replays remain
+# how a round ends once the defuser is down, even when the kill feed missed the plant itself
+_PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser"}
 _MATCH_FOLDER_TIME = re.compile(r"Match-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})")
 
 
@@ -177,6 +195,37 @@ def nice_day(stamp: str | None) -> str:
     return f"{d:%b} {d.day}" + (f", {d.year}" if d.year != datetime.now().year else "")
 
 
+def team_rounds(match: dict[str, Any]) -> list[tuple[int, int, str | None, int | None, int, int]]:
+    """(round, team, side, won, planted, man_down) for both teams in every round of a match.
+    Man down: while both teams still had someone alive, the team had two or more fewer players
+    alive than the other one (from the start, if it began a round short)."""
+    team_of = {p["name"]: p["team"] for p in match.get("players") or []}
+    rows = []
+    for index, rnd in enumerate(match.get("rounds") or [], 1):
+        present = [n for n in (rnd.get("players") or team_of) if n in team_of]
+        alive = {side: {n for n in present if team_of[n] == side} for side in (0, 1)}
+        down = {0: False, 1: False}
+        planted = rnd.get("win_condition") in _PLANTED_ENDINGS
+
+        def check() -> None:
+            if alive[0] and alive[1]:  # once a team is wiped out the round is over
+                for side in (0, 1):
+                    down[side] = down[side] or len(alive[side]) <= len(alive[1 - side]) - 2
+
+        check()
+        for event in rnd.get("events") or []:
+            if event.get("type") == "death" and event.get("actor") in alive[0] | alive[1]:
+                alive[team_of[event["actor"]]].discard(event["actor"])
+                check()
+            elif event.get("type") == "plant":
+                planted = True
+        attack, winner = rnd.get("attack_team"), rnd.get("winner_team")
+        for team in (0, 1):
+            rows.append((index, team, None if attack not in (0, 1) else ("attack" if team == attack else "defense"),
+                         None if winner not in (0, 1) else int(winner == team), int(planted), int(down[team])))
+    return rows
+
+
 class StatsDB:
     """The stats database. Use as a context manager, or call close()."""
 
@@ -194,6 +243,12 @@ class StatsDB:
             if not seen or seen[0] != APP_VERSION:
                 self._conn.execute("DELETE FROM skipped")
                 self._conn.execute("INSERT OR REPLACE INTO stats_meta VALUES ('version', ?)", (APP_VERSION,))
+            # matches read before a table was added are read again, once, wherever their replays still are
+            data = self._conn.execute("SELECT value FROM stats_meta WHERE key = 'data'").fetchone()
+            if not data or int(data[0]) < DATA_VERSION:
+                self._conn.execute("UPDATE matches SET files = 0 WHERE match_id NOT IN "
+                                   "(SELECT DISTINCT match_id FROM team_rounds)")
+                self._conn.execute("INSERT OR REPLACE INTO stats_meta VALUES ('data', ?)", (str(DATA_VERSION),))
 
     def close(self) -> None:
         self._conn.close()
@@ -284,7 +339,7 @@ class StatsDB:
             old = {r[0] for r in self._conn.execute(
                 "SELECT match_id FROM matches WHERE match_id = ? OR source = ?", (match_id, source))}
             for mid in old | {match_id}:
-                for table in ("round_players", "match_players", "matches"):
+                for table in ("team_rounds", "round_players", "match_players", "matches"):
                     self._conn.execute(f"DELETE FROM {table} WHERE match_id = ?", (mid,))
             self._conn.execute("DELETE FROM skipped WHERE source = ?", (source,))
             if other:  # this folder has more of the match than the one imported before: that one is skipped now
@@ -298,6 +353,7 @@ class StatsDB:
             ))
             self._conn.executemany(_INSERT_PLAYER, player_rows)
             self._conn.executemany(_INSERT_ROUND, round_rows)
+            self._conn.executemany(_INSERT_TEAM_ROUND, [(match_id, *row) for row in team_rounds(match)])
         return match_id
 
     def skip(self, source: str, files: int, reason: str) -> None:
