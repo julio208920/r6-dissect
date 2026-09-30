@@ -16,7 +16,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from app_info import APP_NAME, quiet_windows_connection_resets
+from app_info import APP_NAME, can_dock, quiet_windows_connection_resets, send_window_command
 from branding import render_identity
 
 if __name__ == "__main__":
@@ -115,6 +115,14 @@ table.pl caption .cap-sub { margin-left:10px; color:var(--dim); font:500 11px va
 </style>
 """, unsafe_allow_html=True)
 
+if st.query_params.get("view") == "dock":
+    # the Windows app docked to the edge of the screen (desktop/launcher.py): just the compact page
+    page = st.navigation([st.Page("dock.py", title="Docked", icon=":material/dock_to_right:", default=True)],
+                         position="hidden")
+    render_identity(banner=False)
+    page.run()
+    st.stop()
+
 page = st.navigation([
     st.Page("report.py", title="Dashboard", icon=":material/dashboard:", default=True),
     st.Page("ask.py", title="Ask", icon=":material/chat:"),
@@ -125,5 +133,13 @@ page = st.navigation([
     st.Page("appearance.py", title="School Theme", icon=":material/palette:"),
     st.Page("download.py", title="Get the Windows app", icon=":material/download:"),
 ], position="sidebar")
+if can_dock():
+    with st.sidebar:
+        st.caption("Dock the app to the edge of your screen, next to the game or your other apps:")
+        left, right = st.columns(2)
+        if left.button("⇤ Dock left", width="stretch", key="dock_left"):
+            send_window_command("dock", edge="left")
+        if right.button("Dock right ⇥", width="stretch", key="dock_right"):
+            send_window_command("dock", edge="right")
 render_identity()
 page.run()

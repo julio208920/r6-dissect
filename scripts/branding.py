@@ -106,7 +106,9 @@ def readable_accent(color):
     return '#' + ''.join(f'{max(c, 145):02x}' for c in channels)
 
 
-def render_identity():
+def render_identity(banner=True):
+    """The school theme's colors on every page, and (unless banner=False, as in the docked view)
+    its banner with the school's name and logo."""
     theme = current_theme()
     accent = readable_accent(theme['primary'])
     st.markdown(f'''<style>
@@ -133,6 +135,8 @@ def render_identity():
     .identity-badge {{margin-left:auto;border:1px solid var(--secondary);color:var(--secondary);padding:8px 12px;font:700 11px monospace;white-space:nowrap;}}
     @media(max-width:700px) {{.identity-banner {{padding:18px 14px;gap:12px;}}.identity-badge {{display:none;}}h1 {{font-size:2rem!important;}}}}
     </style>''', unsafe_allow_html=True)
+    if not banner:
+        return
     logo = f'<img src="{html.escape(theme["logo"], quote=True)}" alt="School logo">' if theme['logo'] else ''
     st.markdown(f'''<div class="identity-banner">{logo}<div><div class="identity-kicker">RAINBOW SIX SIEGE / COLLEGIATE</div>
     <div class="identity-name">{html.escape(theme['name'])}</div>

@@ -7,7 +7,11 @@ built into Windows 10 and 11) and runs the dashboard's server as a hidden
 child process on this PC only, stopping it when the window closes.
 
     R6MatchStats.exe                      the app window
+    R6MatchStats.exe --dock right|left    the app window, docked to that edge of the screen
+    R6MatchStats.exe --dock off           the app window, undocked (the jump list's "Full window")
     R6MatchStats.exe --serve PORT PID     the server (started by the window)
+
+With the app already open, the --dock ones dock or undock its window instead.
 
 Settings, for testing:
     R6_NO_WINDOW=1         open the app in the default browser instead of a window
@@ -27,7 +31,6 @@ import re
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.request
@@ -44,12 +47,38 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from app_info import APP_NAME, APP_VERSION, quiet_windows_connection_resets  # noqa: E402  ships as a plain file next to app.py
+from app_info import (  # noqa: E402  ships as a plain file next to app.py
+    APP_NAME, APP_VERSION, WINDOW_COMMANDS, desktop_data_dir, quiet_windows_connection_resets, send_window_command,
+)
 
 IS_WINDOWS = sys.platform == "win32"
 STARTUP_TIMEOUT = 90  # seconds; the first start after install is slow while antivirus scans the files
-DATA_DIR = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "R6MatchStats"
+DATA_DIR = desktop_data_dir()
 LOG_FILE = DATA_DIR / "app.log"
+MIN_LAUNCH_SECONDS = 3.0  # the launch screen stays at least this long, so its animation plays out
+FADE_SECONDS = 0.6        # the launch screen's fade into the app (SPLASH's transition)
+
+# The app's identity on Windows (its AppUserModelID): the taskbar groups the window, its pinned
+# taskbar and Start icons and its jump list under it. installer.iss gives its shortcuts the same.
+APP_ID = "R6MatchStats.Desktop"
+LEFT, RIGHT = "left", "right"
+DOCK_WIDTH = 420  # the docked panel's width, in logical pixels (scaled with the display)
+DOCK_STATE = "window.json"  # {"dock": "left" | "right" | null}: docked when the app last closed
+JUMP_LIST_TASKS = [  # (title, arguments, description): right-click the app on the taskbar or Start
+    ("Dock to the right", "--dock right", "Dock R6 Match Stats to the right edge of the screen"),
+    ("Dock to the left", "--dock left", "Dock R6 Match Stats to the left edge of the screen"),
+    ("Full window", "--dock off", "Open R6 Match Stats as a full window"),
+]
+
+
+def log(message: str) -> None:
+    """Add a line to the app's log (the server writes its output there too)."""
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as out:
+            out.write(message.rstrip() + "\n")
+    except OSError:
+        pass
 
 
 # ----------------------------------------------------------- no terminals --
@@ -132,10 +161,10 @@ def start_server() -> tuple[subprocess.Popen, str]:
         port = s.getsockname()[1]
     me = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, str(Path(__file__).resolve())]
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    log = open(LOG_FILE, "w", encoding="utf-8", errors="replace")
+    log_file = open(LOG_FILE, "w", encoding="utf-8", errors="replace")
     proc = subprocess.Popen(
         me + ["--serve", str(port), str(os.getpid())],
-        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL, stdout=log_file, stderr=subprocess.STDOUT,
         creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
     )
     return proc, f"http://127.0.0.1:{port}/"
@@ -234,7 +263,7 @@ body { display:flex; align-items:center; justify-content:center; overflow:hidden
        radial-gradient(ellipse at 50% 42%, var(--glow), transparent 55%),
        repeating-linear-gradient(0deg, transparent 0 31px, rgba(168,184,202,.035) 32px), var(--bg);
        color:var(--text); font:14px 'Segoe UI', system-ui, sans-serif; user-select:none; cursor:default; }
-main { display:flex; flex-direction:column; align-items:center; gap:22px; transition:opacity .35s, transform .35s; }
+main { display:flex; flex-direction:column; align-items:center; gap:22px; transition:opacity .6s, transform .6s; }
 body.ready main { opacity:0; transform:scale(1.04); }
 svg { width:148px; height:148px; overflow:visible; }
 .ring { fill:none; stroke:var(--accent); stroke-width:4.5; stroke-linecap:round; stroke-dasharray:239;
@@ -334,7 +363,7 @@ def finish_launch(window) -> None:
     """Fade the launch screen out, so the dashboard doesn't cut in abruptly."""
     try:
         window.evaluate_js("launch_ready()")
-        time.sleep(0.35)  # the fade's length
+        time.sleep(FADE_SECONDS)
     except Exception:
         pass
 
@@ -363,14 +392,150 @@ SMOKE_TEST_JS = """(() => {
 })()"""
 
 
-def run_window(server: Server) -> int:
+# ------------------------------------------------------------------ docking --
+def dock_request(args: list[str]) -> str | None:
+    """What --dock asked for: LEFT, RIGHT, "off" (undocked), or None if it wasn't given."""
+    if "--dock" in args:
+        i = args.index("--dock")
+        value = args[i + 1].casefold() if i + 1 < len(args) else ""
+        if value in (LEFT, RIGHT, "off"):
+            return value
+    return None
+
+
+def saved_dock() -> str | None:
+    """The edge the app was docked to when it last closed (it reopens docked there), or None."""
+    try:
+        edge = json.loads((DATA_DIR / DOCK_STATE).read_text(encoding="utf-8")).get("dock")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return edge if edge in (LEFT, RIGHT) else None
+
+
+def save_dock(edge: str | None) -> None:
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        (DATA_DIR / DOCK_STATE).write_text(json.dumps({"dock": edge}), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def take_window_commands() -> list[dict]:
+    """The window commands waiting (app_info.send_window_command), oldest first; each is removed
+    as it's taken, so it's done once."""
+    folder = DATA_DIR / WINDOW_COMMANDS
+    commands = []
+    for file in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        try:
+            command = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            command = None
+        try:
+            file.unlink()
+        except OSError:
+            continue  # still being written or already taken: leave it
+        if isinstance(command, dict):
+            commands.append(command)
+    return commands
+
+
+class Docking:
+    """Docks the app window to the left or right edge of its screen (windows_shell.AppBar), where it
+    shows the compact docked page (scripts/dock.py), and back to a full window. The choice is
+    remembered, so the app reopens the way it was closed."""
+
+    def __init__(self, window) -> None:
+        self.window = window
+        self.url = ""  # the app's address, once its server is up
+        self.edge: str | None = None
+        self._bar = None
+        self._lock = threading.Lock()
+
+    def page(self) -> str:
+        """The address the window should show: the docked page while docked, else the app."""
+        return f"{self.url}?view=dock&edge={self.edge}" if self.edge else self.url
+
+    def _appbar(self):
+        if self._bar is None:
+            from windows_shell import AppBar
+
+            self._bar = AppBar(int(self.window.native.Handle.ToInt64()))
+        return self._bar
+
+    def set(self, edge: str | None, load: bool = True) -> None:
+        """Dock to LEFT or RIGHT, or undock (None); `load` shows the matching page."""
+        edge = edge if edge in (LEFT, RIGHT) else None
+        with self._lock:
+            if edge == self.edge:
+                return
+            if edge:
+                self._appbar().dock(edge, DOCK_WIDTH)
+            elif self._bar is not None:
+                self._bar.undock()
+            self.edge = edge
+            save_dock(edge)
+            if load and self.url:
+                self.window.load_url(self.page())
+
+    def release(self) -> None:
+        """Give the screen strip back as the app closes, but remember it was docked."""
+        with self._lock:
+            if self._bar is not None and self._bar.edge:
+                try:
+                    self._bar.undock()
+                except Exception:
+                    pass
+
+    def follow_commands(self) -> None:
+        """Carry out the window commands the pages and the jump list send, for as long as the app runs."""
+        while True:
+            for command in take_window_commands():
+                try:
+                    self.set(command.get("edge") if command.get("command") == "dock" else None)
+                except Exception as e:
+                    log(f"Couldn't {command.get('command')} the window: {e!r}")
+            time.sleep(0.4)
+
+
+JUMP_LIST = {"state": "not set"}  # how setting it went, for the smoke test
+
+
+def set_jump_list_quietly() -> None:
+    """Add the jump list's tasks (Dock to the right, ...); a failure only means no tasks."""
+    try:
+        from windows_shell import set_jump_list
+
+        set_jump_list(APP_ID, sys.executable, JUMP_LIST_TASKS)
+        JUMP_LIST["state"] = "set"
+    except Exception as e:
+        JUMP_LIST["state"] = repr(e)
+        log(f"Couldn't set the jump list: {e!r}")
+
+
+# ------------------------------------------------------------------- window --
+def run_window(server: Server, dock: str | None = None) -> int:
+    """The app window. `dock` (from --dock) docks it on opening; otherwise it opens the way it was
+    last closed, docked or not."""
     import webview
 
     webview.settings["ALLOW_DOWNLOADS"] = True  # the report's CSV, JSON and TXT buttons
     smoke_file = os.environ.get("R6_SMOKE_TEST")
     result = {"ok": False}
+    docking: Docking | None = None
+    take_window_commands()  # anything left over from a crash is stale
 
     def load(window) -> None:
+        nonlocal docking
+        window.events.shown.wait(15)  # pywebview starts this before it creates the window
+        opened = time.monotonic()
+        if IS_WINDOWS:
+            docking = Docking(window)
+            threading.Thread(target=set_jump_list_quietly, name="jump-list", daemon=True).start()
+            edge = (None if dock == "off" else dock) if dock else (None if smoke_file else saved_dock())
+            try:
+                docking.set(edge, load=False)  # docks now, so the launch screen shows where the app will be
+            except Exception as e:
+                log(f"Couldn't dock the window: {e!r}")
         # the check runs while the launch screen shows its first step, before any server code
         if not server.start():
             window.load_html(tampered_page(server.problems))
@@ -383,19 +548,55 @@ def run_window(server: Server) -> int:
             window.load_html(failed_page())
             return
         show_step(window, 2)
+        time.sleep(max(0.0, MIN_LAUNCH_SECONDS - (time.monotonic() - opened)))
         finish_launch(window)
-        window.load_url(server.url)
+        if docking:
+            docking.url = server.url
+            window.load_url(docking.page())
+            threading.Thread(target=docking.follow_commands, name="window-commands", daemon=True).start()
+        else:
+            window.load_url(server.url)
         if smoke_file:
             result.update(smoke_test(window))
+            if docking and result["ok"]:
+                result.update(smoke_test_docking(window, docking))
             window.destroy()
 
-    window = webview.create_window(APP_NAME, html=splash_page(), width=1440, height=900, min_size=(900, 600),
-                                   background_color="#080e19", text_select=True)
-    webview.start(load, window, private_mode=False, storage_path=str(DATA_DIR / "webview"))
+    # the minimum size is below the docked panel's, so it never stops the window becoming one
+    window = webview.create_window(APP_NAME, html=splash_page(), width=1440, height=900,
+                                   min_size=(DOCK_WIDTH - 60, 480), background_color="#080e19", text_select=True)
+    def closing() -> None:  # returns None: returning False would keep the window open
+        if docking:
+            docking.release()
+
+    window.events.closing += closing
+    try:
+        webview.start(load, window, private_mode=False, storage_path=str(DATA_DIR / "webview"))
+    finally:
+        if docking:
+            docking.release()
     if smoke_file:
         Path(smoke_file).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return 0 if result["ok"] else 1
     return 0
+
+
+def _read_page(window) -> dict:
+    try:
+        return json.loads(window.evaluate_js(SMOKE_TEST_JS) or "{}")
+    except Exception as e:  # the page is still loading
+        return {"js_error": repr(e)}
+
+
+def _screenshot(suffix: str = "") -> str | None:
+    """Save the screen next to the smoke test's result; the error, if it couldn't."""
+    try:
+        from PIL import ImageGrab
+
+        ImageGrab.grab().save(os.environ["R6_SMOKE_TEST"] + suffix + ".png")
+    except Exception as e:  # no desktop to capture
+        return repr(e)
+    return None
 
 
 def smoke_test(window) -> dict:
@@ -403,23 +604,55 @@ def smoke_test(window) -> dict:
     deadline = time.monotonic() + STARTUP_TIMEOUT
     seen: dict = {}
     while time.monotonic() < deadline:
-        try:
-            seen = json.loads(window.evaluate_js(SMOKE_TEST_JS) or "{}")
-        except Exception as e:  # the page is still loading
-            seen = {"js_error": repr(e)}
+        seen = _read_page(window)
         if seen.get("error"):
             break
         if dashboard_is_rendered(seen.get("text", "")):
             time.sleep(2)  # let the page finish painting for the screenshot
-            try:
-                from PIL import ImageGrab
-
-                ImageGrab.grab().save(os.environ["R6_SMOKE_TEST"] + ".png")
-            except Exception as e:  # no desktop to capture
-                seen["screenshot_error"] = repr(e)
+            error = _screenshot()
+            if error:
+                seen["screenshot_error"] = error
             return {"ok": True, **seen}
         time.sleep(1)
     return {"ok": False, **seen}
+
+
+def smoke_test_docking(window, docking: Docking) -> dict:
+    """Dock the window to the right, check it took its strip of the screen and shows the docked
+    page, then undock it and check the screen is given back. Also reports the app's identity."""
+    from windows_shell import app_id, window_rect, work_area
+
+    deadline = time.monotonic() + 20
+    while JUMP_LIST["state"] == "not set" and time.monotonic() < deadline:  # it's set on its own thread
+        time.sleep(0.5)
+    report: dict = {"app_id": app_id(), "jump_list": JUMP_LIST["state"], "work_area": work_area()}
+    try:
+        docking.set(RIGHT)
+        report["docked_rect"] = window_rect(docking._bar.hwnd)
+        report["docked_work_area"] = work_area()
+        deadline, page = time.monotonic() + 60, {}
+        while time.monotonic() < deadline and not dock_is_rendered(page.get("text", "")):
+            time.sleep(1)
+            page = _read_page(window)
+        report["docked_page"] = page.get("text", "")[:600]
+        time.sleep(2)
+        report["docked_screenshot_error"] = _screenshot(".docked")
+        docking.set(None)
+        time.sleep(1)
+        report["undocked_rect"] = window_rect(docking._bar.hwnd)
+        report["undocked_work_area"] = work_area()
+    except Exception as e:
+        report["dock_error"] = repr(e)
+    right = report["work_area"][2]
+    docked = report.get("docked_work_area")
+    report["dock_ok"] = bool(
+        report.get("app_id") == APP_ID and report["jump_list"] == "set"
+        and docked and docked[2] < right  # the strip left the work area...
+        and report.get("docked_rect", (0, 0, 0, 0))[2] >= right  # ...and the window sits in it
+        and dock_is_rendered(report.get("docked_page", ""))
+        and report.get("undocked_work_area") == report["work_area"]  # ...and was given back
+    )
+    return {"ok": report["dock_ok"], "docking": report}
 
 
 def dashboard_is_rendered(text: str) -> bool:
@@ -427,6 +660,11 @@ def dashboard_is_rendered(text: str) -> bool:
     Themes can capitalize headings, and the window reports text as shown ("DASHBOARD")."""
     text = text.casefold()
     return "dashboard" in text or "match report" in text
+
+
+def dock_is_rendered(text: str) -> bool:
+    """The docked page (scripts/dock.py) is showing: it has the Full window button."""
+    return "full window" in text.casefold()
 
 
 def run_in_browser(server: Server) -> int:
@@ -480,19 +718,27 @@ def main() -> int:
     hide_console_windows()  # first, before anything can start a program
     if len(sys.argv) >= 4 and sys.argv[1] == "--serve":
         return serve(int(sys.argv[2]), int(sys.argv[3]))
+    dock = dock_request(sys.argv[1:])
     if not os.environ.get("R6_SMOKE_TEST") and already_running():
+        if dock:  # e.g. the jump list's "Dock to the right": the open window does it
+            send_window_command("undock") if dock == "off" else send_window_command("dock", edge=dock)
         return 0
+    if IS_WINDOWS:
+        try:
+            from windows_shell import set_app_id
+
+            set_app_id(APP_ID)  # before any window opens
+        except Exception as e:
+            log(f"Couldn't set the app's Windows identity: {e!r}")
 
     server = Server()
     try:
         if os.environ.get("R6_NO_WINDOW"):
             return run_in_browser(server)
         try:
-            return run_window(server)
+            return run_window(server, dock)
         except Exception as e:  # no WebView2 runtime, or it failed to start
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            with open(LOG_FILE, "a", encoding="utf-8") as log:
-                log.write(f"\nThe app window couldn't open ({e!r}); using the web browser instead.\n")
+            log(f"\nThe app window couldn't open ({e!r}); using the web browser instead.")
             if os.environ.get("R6_SMOKE_TEST"):
                 raise
             return run_in_browser(server)

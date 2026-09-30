@@ -452,6 +452,74 @@ class TestWindowsAppBundle(unittest.TestCase):
         self.assertEqual(sorted(used - stdlib), [])
 
 
+class TestDockedView(unittest.TestCase):
+    """The Windows app docked to the edge of the screen: its compact page (dock.py) and the buttons
+    that dock and undock the window."""
+
+    def setUp(self):
+        self.appdata = tempfile.mkdtemp(dir=_DB_FOLDER)  # where the window's commands are written
+        for patch in (mock.patch.object(season_stats, "DEFAULT_DB_PATH",
+                                        Path(tempfile.mkdtemp(dir=_DB_FOLDER)) / "stats.db"),
+                      mock.patch.dict(os.environ, {"LOCALAPPDATA": self.appdata})):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def commands(self) -> list[dict]:
+        folder = Path(self.appdata, "R6MatchStats", app_info.WINDOW_COMMANDS)
+        return [json.loads(f.read_text(encoding="utf-8")) for f in sorted(folder.glob("*.json"))]
+
+    @staticmethod
+    def docked(at: AppTest, edge: str = "right") -> AppTest:
+        at.query_params["view"] = "dock"
+        at.query_params["edge"] = edge
+        return at.run()
+
+    def test_shows_the_latest_match_round_by_round(self):
+        from sample_data import SAMPLE_MATCH
+
+        at = self.docked(with_matches(run_app()))
+        self.assertFalse(at.exception)
+        page = "".join(m.value for m in at.markdown)
+        self.assertIn("Latest match", page)
+        self.assertEqual(page.count('class="rt '), len(SAMPLE_MATCH["rounds"]))  # a tile per round...
+        self.assertIn('class="rt attack won"', page)  # ...with its side and result
+        self.assertIn('class="rt defense lost"', page)
+        self.assertIn('<span class="dk-wl win">WIN</span>', page)  # Fabian's team won 6-3
+        self.assertIn("6<i>–</i>3", page)
+        self.assertIn("Last 2 matches", page)
+        self.assertIn("As Fabian", page)
+        self.assertNotIn('<div class="identity-banner">', page)  # no school banner in the narrow panel
+        self.assertEqual([b.label for b in at.button], ["⇱ Full window"])  # docking itself needs the Windows app
+
+    def test_without_matches_says_why(self):
+        at = self.docked(run_app())
+        self.assertFalse(at.exception)
+        self.assertIn("replay folder wasn't found", at.info[0].value)
+
+    def test_full_window_outside_the_windows_app_goes_back_to_the_dashboard(self):
+        at = self.docked(run_app())
+        at = at.button(key="undock").click().run()
+        self.assertFalse(at.exception)
+        self.assertNotIn("view", at.query_params)
+        self.assertIn("Dashboard", [t.value for t in at.title])
+        self.assertEqual(self.commands(), [])  # there's no window to send them to
+
+    def test_dock_buttons_tell_the_window(self):
+        with mock.patch.object(app_info, "can_dock", return_value=True):
+            at = run_app()
+            at.button(key="dock_right").click().run()
+            self.assertEqual(self.commands(), [{"command": "dock", "edge": "right"}])
+            at = self.docked(at, "right")
+            self.assertEqual([b.label for b in at.button], ["⇄ Dock left", "⇱ Full window"])
+            at.button(key="dock_other").click().run()
+            at.button(key="undock").click().run()
+        self.assertEqual(self.commands()[1:], [{"command": "dock", "edge": "left"}, {"command": "undock"}])
+
+    def test_no_dock_buttons_outside_the_windows_app(self):
+        at = run_app()
+        self.assertFalse(at.exception)
+        self.assertEqual([b for b in at.button if str(b.key).startswith("dock_")], [])
+
 RELEASE = {"version": "9.9.0", "url": "https://github.com/o/r/releases/tag/v9.9.0",
            "installer": "https://github.com/o/r/releases/download/v9.9.0/R6MatchStats-Setup.exe",
            "zip": "https://github.com/o/r/releases/download/v9.9.0/R6MatchStats-Windows.zip"}

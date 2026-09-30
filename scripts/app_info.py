@@ -13,6 +13,8 @@ import logging
 import os
 import re
 import sys
+import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -114,6 +116,35 @@ def version_tuple(version: str) -> tuple[int, ...]:
 def is_windows_app() -> bool:
     """Running as the packaged Windows app (desktop/launcher.py sets this)."""
     return os.environ.get("R6_DESKTOP") == "1"
+
+
+def can_dock() -> bool:
+    """The app's window can be docked to the edge of the screen: the Windows app, on Windows."""
+    return is_windows_app() and sys.platform == "win32"
+
+
+def desktop_data_dir() -> Path:
+    """Where the Windows app keeps its log, settings and stats: %LOCALAPPDATA%\\R6MatchStats."""
+    return Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "R6MatchStats"
+
+
+# commands for the Windows app's window (desktop/launcher.py), one small JSON file each
+WINDOW_COMMANDS = "window-commands"
+WINDOW_COMMAND_NAMES = ("dock", "undock")
+
+
+def send_window_command(command: str, **args: str) -> None:
+    """Ask the Windows app's window to do something: "dock" (edge="left" or "right") or "undock".
+    The pages run in the app's server process, so they can't reach the window directly: each
+    command is written as a file that the window picks up (and deletes) within half a second."""
+    if command not in WINDOW_COMMAND_NAMES:
+        raise ValueError(f"unknown window command: {command}")
+    folder = desktop_data_dir() / WINDOW_COMMANDS
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f"{time.time_ns()}-{os.getpid()}"
+    temporary = folder / f"{name}.tmp"
+    temporary.write_text(json.dumps({"command": command, **args}), encoding="utf-8")
+    temporary.replace(folder / f"{name}.json")  # appears whole, never half-written
 
 
 def is_public_host() -> bool:

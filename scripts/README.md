@@ -83,6 +83,13 @@ Below the scoreboards you'll find the downloads and a round-by-round section:
 
 Operator Analytics also shows which side each operator is played on.
 
+In the Windows app you can **dock** the app to the left or right edge of your
+screen, next to the game or your other apps. Use the buttons in the sidebar, or
+right-click the app's taskbar icon. The docked panel (`dock.py`) shows your
+latest match round by round (⚔ attack, ♜ defense, won or lost), your K-D-A, EPS,
+KOST and operators, and your last five results. It picks up a new match about
+15 seconds after the game saves it. See [desktop/README.md](../desktop/README.md).
+
 The **Use demo match** toggle loads a built-in
 sample match, so you can try the dashboard without a replay. The **Get the
 Windows app** page has the download button and install steps.

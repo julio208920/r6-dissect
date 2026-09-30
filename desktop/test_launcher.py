@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,119 @@ class TestLaunchScreen(unittest.TestCase):
         launcher.show_step(window, 2)
         window.evaluate_js.assert_called_with("launch_step(2)")
 
+
+
+class TestDocking(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
+        self.data = Path(folder) / "R6MatchStats"
+        for patch in (mock.patch.dict("os.environ", {"LOCALAPPDATA": folder}),
+                      mock.patch.object(launcher, "DATA_DIR", self.data)):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_dock_argument(self):
+        self.assertEqual(launcher.dock_request(["--dock", "right"]), "right")
+        self.assertEqual(launcher.dock_request(["--dock", "LEFT"]), "left")
+        self.assertEqual(launcher.dock_request(["--dock", "off"]), "off")
+        for args in ([], ["--dock"], ["--dock", "top"], ["--serve", "1", "2"]):
+            self.assertIsNone(launcher.dock_request(args), args)
+
+    def test_docked_state_is_remembered(self):
+        self.assertIsNone(launcher.saved_dock())
+        launcher.save_dock("left")
+        self.assertEqual(launcher.saved_dock(), "left")
+        launcher.save_dock(None)
+        self.assertIsNone(launcher.saved_dock())
+        (self.data / launcher.DOCK_STATE).write_text("{broken", encoding="utf-8")
+        self.assertIsNone(launcher.saved_dock())
+
+    def test_commands_from_the_pages_reach_the_window_once(self):
+        launcher.send_window_command("dock", edge="right")
+        launcher.send_window_command("undock")
+        self.assertEqual(launcher.take_window_commands(), [{"command": "dock", "edge": "right"}, {"command": "undock"}])
+        self.assertEqual(launcher.take_window_commands(), [])  # each one is done once
+        with self.assertRaises(ValueError):
+            launcher.send_window_command("explode")
+
+    def docking(self):
+        window = mock.Mock()
+        docking = launcher.Docking(window)
+        docking.url = "http://127.0.0.1:5000/"
+        docking._bar = mock.Mock(edge=None)
+        return docking, window
+
+    def test_dock_move_and_undock(self):
+        docking, window = self.docking()
+        docking.set("right")
+        docking._bar.dock.assert_called_once_with("right", launcher.DOCK_WIDTH)
+        window.load_url.assert_called_with("http://127.0.0.1:5000/?view=dock&edge=right")
+        self.assertEqual(launcher.saved_dock(), "right")
+        docking.set("right")  # already there: nothing happens
+        self.assertEqual(docking._bar.dock.call_count, 1)
+        docking.set("left")
+        window.load_url.assert_called_with("http://127.0.0.1:5000/?view=dock&edge=left")
+        docking.set(None)
+        docking._bar.undock.assert_called_once()
+        window.load_url.assert_called_with("http://127.0.0.1:5000/")
+        self.assertIsNone(launcher.saved_dock())
+
+    def test_docking_before_the_server_is_up_only_moves_the_window(self):
+        docking, window = self.docking()
+        docking.url = ""
+        docking.set("left", load=False)
+        docking._bar.dock.assert_called_once()
+        window.load_url.assert_not_called()
+        self.assertEqual(docking.page(), "?view=dock&edge=left")  # the server's address goes in front
+
+    def test_a_failed_dock_changes_nothing(self):
+        docking, window = self.docking()
+        docking._bar.dock.side_effect = OSError("no shell")
+        with self.assertRaises(OSError):
+            docking.set("right")
+        self.assertIsNone(docking.edge)
+        self.assertIsNone(launcher.saved_dock())
+        window.load_url.assert_not_called()
+
+    def test_closing_gives_the_screen_back_but_remembers_the_dock(self):
+        docking, _ = self.docking()
+        docking.set("right")
+        docking._bar.edge = "right"
+        docking.release()
+        docking._bar.undock.assert_called_once()
+        self.assertEqual(launcher.saved_dock(), "right")  # reopens docked
+
+    def test_the_launch_screen_waits_and_fades(self):
+        self.assertGreaterEqual(launcher.MIN_LAUNCH_SECONDS, 3)
+        self.assertEqual(launcher.FADE_SECONDS, 0.6)
+        self.assertIn("transition:opacity .6s", launcher.SPLASH)  # the fade the launcher waits out
+
+    def test_the_docked_page_is_recognized(self):
+        self.assertTrue(launcher.dock_is_rendered("⇄ Dock left\n⇱ Full window\nLatest match"))
+        self.assertFalse(launcher.dock_is_rendered("Dashboard"))
+
+
+class TestWindowsShell(unittest.TestCase):
+    def test_structures_have_windows_layout(self):
+        import ctypes
+
+        import windows_shell as shell
+
+        if ctypes.sizeof(ctypes.c_void_p) != 8:
+            self.skipTest("the sizes below are 64-bit Windows'")
+        sizes = {s.__name__: ctypes.sizeof(s) for s in (shell.APPBARDATA, shell.MONITORINFO, shell.RECT, shell.GUID,
+                                                        shell.PROPERTYKEY, shell.PROPVARIANT)}
+        self.assertEqual(sizes, {"APPBARDATA": 48, "MONITORINFO": 40, "RECT": 16, "GUID": 16, "PROPERTYKEY": 20,
+                                 "PROPVARIANT": 24})
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows' shell")
+    def test_app_id_and_jump_list_are_accepted(self):
+        import windows_shell as shell
+
+        shell.set_app_id("R6MatchStats.Test")
+        self.assertEqual(shell.app_id(), "R6MatchStats.Test")
+        shell.set_jump_list("R6MatchStats.Test", sys.executable, launcher.JUMP_LIST_TASKS)  # raises if refused
 
 if __name__ == "__main__":
     unittest.main()
