@@ -16,7 +16,10 @@ from unittest import mock
 
 import file_guard
 import parser as replay_parser
-from metrics_engine import PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, rows_csv
+from metrics_engine import (
+    ATTACK, DEFENSE, PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, round_rows,
+    rows_csv, side_label, side_split, win_condition_label,
+)
 from parser import (
     ReplayParseError, _stage_match_folder, collect_rec_files, group_by_match, normalize_from_r6_dissect, save_uploads,
 )
@@ -132,6 +135,67 @@ class TestRoundStats(unittest.TestCase):
         self.assertEqual(parsed, [{k: str(v) for k, v in r.items()} for r in rows])
         self.assertEqual(rows_csv([]), "\r\n")
 
+
+class TestSidesAndOperators(unittest.TestCase):
+    @staticmethod
+    def with_operators(round_obj, ops):
+        for p in round_obj["players"]:
+            p["operator"] = {"name": ops[p["username"]], "id": 0}
+        return round_obj
+
+    def test_each_round_records_side_operator_and_result(self):
+        # r6-dissect numbers rounds from 0; teams swap sides in the second round
+        r0 = self.with_operators(rnd(0, [kill(170, "a1", "b1")], winner=0, attack=0),
+                                 {**{a: "Ash" for a in A}, **{b: "Jager" for b in B}})
+        r1 = self.with_operators(rnd(1, [kill(170, "b2", "a1")], winner=1, attack=1),
+                                 {**{a: "Mute" for a in A}, **{b: "Thermite" for b in B}})
+        r1["teams"][0]["winCondition"] = "Time"
+        stats = compute_match_metrics(normalize_from_r6_dissect({"rounds": [r0, r1]}))
+        a1, b1 = stats["a1"].round_breakdown, stats["b1"].round_breakdown
+        self.assertEqual([(rb.side, rb.operator, rb.won) for rb in a1],
+                         [(ATTACK, "Ash", True), (DEFENSE, "Mute", False)])
+        self.assertEqual([(rb.side, rb.operator, rb.won) for rb in b1],
+                         [(DEFENSE, "Jäger", False), (ATTACK, "Thermite", True)])
+        self.assertEqual(side_split(a1), {"attack": {"rounds": 1, "won": 1, "kills": 1, "deaths": 0},
+                                          "defense": {"rounds": 1, "won": 0, "kills": 0, "deaths": 1}})
+
+    def test_unknown_side_and_winner(self):
+        r = rnd(0, [])
+        for t in r["teams"]:
+            t.pop("role")
+            t["won"] = False
+        rb = metrics(r)["a1"].round_breakdown[0]
+        self.assertEqual((rb.side, rb.operator, rb.won), (None, None, None))
+        self.assertEqual(side_split([rb]), {})
+        self.assertEqual(side_label(rb.side), "")
+
+    def test_round_rows_for_the_json_export(self):
+        match = normalize_from_r6_dissect({"rounds": [rnd(0, [], winner=1, attack=0), rnd(1, [], winner=0, attack=1)]})
+        rows = round_rows(match, compute_match_metrics(match))
+        self.assertEqual([(r["round"], r["attack"], r["defense"], r["winner"]) for r in rows],
+                         [(1, "Alpha", "Bravo", "Bravo"), (2, "Bravo", "Alpha", "Alpha")])
+        a1 = next(p for p in rows[0]["players"] if p["player"] == "a1")
+        self.assertEqual((a1["team"], a1["side"], a1["won"]), ("Alpha", "attack", False))
+        self.assertEqual(len(rows[0]["players"]), 10)
+        json.dumps(rows)  # plain data, ready to export
+
+    def test_demo_match_has_sides_and_operators(self):
+        stats = compute_match_metrics(SAMPLE_MATCH)
+        fabian = stats["Fabian"].round_breakdown
+        self.assertEqual((fabian[0].side, fabian[0].operator), (ATTACK, "Ash"))
+        self.assertEqual((fabian[1].side, fabian[1].operator), (DEFENSE, "Jäger"))
+        for s in stats.values():
+            for rb in s.round_breakdown:
+                self.assertIn(rb.side, (ATTACK, DEFENSE))
+                self.assertTrue(rb.operator)
+
+    def test_labels(self):
+        self.assertEqual(side_label(ATTACK), "⚔\ufe0e Attack")
+        self.assertEqual(side_label(DEFENSE), "♜ Defense")
+        self.assertEqual(win_condition_label("KilledOpponents"), "Elimination")
+        self.assertEqual(win_condition_label("DefusedBomb"), "Defuser detonated")
+        self.assertEqual(win_condition_label("unknown"), "")
+        self.assertEqual(win_condition_label("SomethingNew"), "SomethingNew")
 
 # what real replays start with: the current format, and the older zstd-compressed one
 REC = b"dissect\x00" + bytes(2000)

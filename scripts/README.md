@@ -69,7 +69,10 @@ web server's disk, so they're only available to someone on the same computer
 as the app.
 
 Below the scoreboards you'll find CSV, JSON and TXT downloads and a round-by-round
-breakdown for each player. The **Use demo match** toggle loads a built-in
+section: a table of every round showing which side each team played (⚔ attack,
+♜ defense), who won and how, and the site, then each player's rounds with their
+side, operator, result and what they did, plus their attack/defense split. The
+JSON download includes the same per-round data. The **Use demo match** toggle loads a built-in
 sample match, so you can try the dashboard without a replay. The **Get the
 Windows app** page has the download button and install steps.
 

@@ -93,7 +93,11 @@ class TestImport(unittest.TestCase):
         self.assertEqual(self.db.distinct("map"), ["Bank"])
 
     def test_a_replay_without_round_picks_uses_the_one_operator_played(self):
-        match = copy.deepcopy(SAMPLE_MATCH)  # no per-round picks; everyone played one operator
+        match = copy.deepcopy(SAMPLE_MATCH)
+        for rnd in match["rounds"]:
+            del rnd["operators"]  # no per-round picks...
+        for player in match["players"]:  # ...and everyone played one operator
+            player["operator_history"] = ["Ash" if player["team"] == 0 else "Jager"]
         match["players"][1]["operator_history"] = ["Ash", "Thermite"]  # this one switched: unknown
         self.db.import_match("demo", match)
         rows = self.db.query("SELECT player, operator, COUNT(*) AS n FROM round_players "
