@@ -39,6 +39,7 @@ class TestAppIntegrity(unittest.TestCase):
     def test_untouched_install_passes(self):
         (self.dir / "unins000.exe").write_bytes(b"MZ uninstaller")  # added by the installer: fine
         (self.dir / "unins000.dat").write_bytes(b"data")
+        (self.dir / "unins000.msg").write_bytes(b"messages")  # a signed uninstaller's
         self.assertEqual(self.check.verify(), [])
 
     def test_changed_added_and_removed_files_are_caught(self):

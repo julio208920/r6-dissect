@@ -27,8 +27,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 MANIFEST = "_internal/manifest.json"
-# added to the folder by the installer, after the build
-ALLOWED_EXTRAS = ("unins*.exe", "unins*.dat")
+# added to the folder by the installer, after the build (a signed uninstaller keeps its messages in unins*.msg)
+ALLOWED_EXTRAS = ("unins*.exe", "unins*.dat", "unins*.msg")
 
 
 class AppIntegrity:
