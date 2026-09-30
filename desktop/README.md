@@ -47,14 +47,35 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
   and stops the server when the window closes. While the server starts, the
   window shows a launch screen: the app's icon draws itself in the saved school
   theme's color, and a three-step bar follows the real startup (checking the
-  app's files, starting the stats engine, loading the dashboard) before it fades
-  into the dashboard. It respects Windows' "reduce animations" setting. Opening the app while it's
+  app's files, starting the stats engine, loading the dashboard). It stays up at
+  least 3 seconds so the animation plays out, then fades into the dashboard. It
+  respects Windows' "reduce animations" setting. Opening the app while it's
   already open brings the existing window to the front. Without WebView2 it
   falls back to the default browser. The app has no console, so Windows would
   give every console program it starts (the replay parser, or Git when
   Streamlit looks up the app's folder) a terminal window of its own; the
   launcher makes all of them run without one (`hide_console_windows`, tested
   in `test_launcher.py`).
+- `windows_shell.py` makes the app behave like other Windows apps, using ctypes only:
+  - **Its own identity** (AppUserModelID `R6MatchStats.Desktop`, also set on the
+    installer's shortcuts). A pinned taskbar or Start icon groups with the open
+    window.
+  - **A jump list**: right-click the app on the taskbar or Start for **Dock to
+    the right**, **Dock to the left** and **Full window**. These run
+    `R6MatchStats.exe --dock right|left|off`, which the open window carries out.
+  - **Docking** (`AppBar`): the window becomes a borderless, always-on-top panel,
+    420 pixels wide (scaled with the display), on the left or right edge of its
+    screen. Windows reserves that strip the way it reserves the taskbar's, so
+    maximized windows fit beside it. While docked, the window shows
+    `scripts/dock.py`: your latest match round by round, your numbers and your
+    recent form. It refreshes every 15 seconds.
+
+  You can dock from the Dashboard's sidebar, from the jump list, or from the
+  panel itself (**Dock left/right** to move it, **Full window** to undock). The
+  pages run in the server process, so they ask the window with small command
+  files (`app_info.send_window_command`, in
+  `%LOCALAPPDATA%\R6MatchStats\window-commands`). The app reopens the way it
+  was closed, docked or not (`window.json`).
 - `R6MatchStats.spec` tells PyInstaller what to bundle: a windowed exe (no
   console) with the icon and version details. The app files ship as plain
   files, because Streamlit runs `app.py` and its pages from disk.
@@ -78,4 +99,9 @@ to `%LOCALAPPDATA%\R6MatchStats\season_stats.db`.
 
 For testing, set `R6_NO_WINDOW=1` to open the app in the default browser
 instead of a window, or `R6_SMOKE_TEST=result.json` to load the app, record
-what the window shows, and quit (exit code 0 if the dashboard rendered).
+what the window shows, and quit. On Windows the smoke test also docks the
+window to the right, checks that it took its strip of the screen and shows the
+docked page, then undocks it and checks the strip was given back. It also
+checks the app's identity and jump list. The exit code is 0 if all of that
+worked. The screenshots are saved as `result.json.png` and
+`result.json.docked.png`.

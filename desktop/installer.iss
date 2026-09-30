@@ -55,8 +55,10 @@ Type: filesandordirs; Name: "{app}\_internal"
 Source: "..\dist\R6MatchStats\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\R6 Match Stats"; Filename: "{app}\R6MatchStats.exe"
-Name: "{autodesktop}\R6 Match Stats"; Filename: "{app}\R6MatchStats.exe"; Tasks: desktopicon
+; AppUserModelID: the app's Windows identity (launcher.py's APP_ID), so a shortcut pinned to the
+; taskbar or Start is the same app as the open window, with its jump list (Dock to the right, ...)
+Name: "{autoprograms}\R6 Match Stats"; Filename: "{app}\R6MatchStats.exe"; AppUserModelID: "R6MatchStats.Desktop"
+Name: "{autodesktop}\R6 Match Stats"; Filename: "{app}\R6MatchStats.exe"; AppUserModelID: "R6MatchStats.Desktop"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\R6MatchStats.exe"; Description: "{cm:LaunchProgram,R6 Match Stats}"; Flags: nowait postinstall skipifsilent

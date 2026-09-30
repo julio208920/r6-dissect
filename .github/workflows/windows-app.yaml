@@ -85,6 +85,10 @@ jobs:
           foreach ($path in $app, $startMenu, $desktop) {
             if (-not (Test-Path $path)) { throw "missing after install: $path" }
           }
+          # the shortcut carries the app's Windows identity, so pinning it groups with the open window
+          $lnk = Get-Item $startMenu
+          $id = (New-Object -ComObject Shell.Application).NameSpace($lnk.DirectoryName).ParseName($lnk.Name).ExtendedProperty("System.AppUserModel.ID")
+          if ($id -ne "R6MatchStats.Desktop") { throw "the Start menu shortcut's AppUserModelID is '$id'" }
           $info = (Get-Item $app).VersionInfo
           "Installed $($info.ProductName) $($info.ProductVersion) to $app"
 
@@ -127,6 +131,7 @@ jobs:
           path: |
             smoke.json
             smoke.json.png
+            smoke.json.docked.png
             install.log
           if-no-files-found: ignore
       - name: Attach to the release
