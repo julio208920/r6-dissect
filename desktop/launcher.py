@@ -23,6 +23,7 @@ import functools
 import html
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -43,7 +44,7 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from app_info import APP_NAME, quiet_windows_connection_resets  # noqa: E402  ships as a plain file next to app.py
+from app_info import APP_NAME, APP_VERSION, quiet_windows_connection_resets  # noqa: E402  ships as a plain file next to app.py
 
 IS_WINDOWS = sys.platform == "win32"
 STARTUP_TIMEOUT = 90  # seconds; the first start after install is slow while antivirus scans the files
@@ -190,17 +191,152 @@ def wait_until_up(proc: subprocess.Popen, url: str) -> bool:
 def _page(body: str) -> str:
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
 body {{ margin:0; height:100vh; display:flex; flex-direction:column; align-items:center;
-       justify-content:center; gap:18px; background:#0d1117; color:#f0f3f6;
+       justify-content:center; gap:18px; background:#080e19; color:#f2f6fb;
        font:15px 'Segoe UI', system-ui, sans-serif; text-align:center; }}
-.spin {{ width:42px; height:42px; border:4px solid #232b36; border-top-color:#ff5c1a;
-         border-radius:50%; animation:s .9s linear infinite; }}
-@keyframes s {{ to {{ transform:rotate(360deg) }} }}
-h1 {{ font-size:22px; margin:0; }} p {{ color:#8b949e; margin:0; max-width:520px; }}
-code {{ color:#f0f3f6; user-select:all; }}
+h1 {{ font-size:22px; margin:0; }} p {{ color:#a8b8ca; margin:0; max-width:520px; }}
+code {{ color:#f2f6fb; user-select:all; }}
 </style></head><body>{body}</body></html>"""
 
 
-LOADING = _page(f'<div class="spin"></div><h1>{APP_NAME}</h1><p>Starting up...</p>')
+DEFAULT_ACCENT = "#52d5f2"  # branding.DEFAULT_THEME's primary color
+
+
+def saved_theme() -> dict:
+    """The school theme saved on the School Theme page (branding.save_theme), read without
+    loading Streamlit so the launch screen can show it straight away: its color and name.
+    The default Siege / NECC theme when nothing (valid) is saved."""
+    theme = {"primary": DEFAULT_ACCENT, "name": ""}
+    try:
+        saved = json.loads((DATA_DIR / "appearance.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return theme
+    if isinstance(saved, dict):
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", str(saved.get("primary", ""))):
+            theme["primary"] = saved["primary"]
+        if isinstance(saved.get("name"), str) and saved["name"] != "Siege / NECC":
+            theme["name"] = saved["name"].strip()[:80]
+    return theme
+
+
+def readable_accent(color: str) -> str:
+    """Lighten a school color enough to read on the dark background (as branding.readable_accent)."""
+    return "#" + "".join(f"{max(int(color[n:n + 2], 16), 145):02x}" for n in (1, 3, 5))
+
+
+# The launch screen: the app's icon (a crosshair around rising stat bars) draws itself, then a
+# sweep circles it while the steps below fill in. launch_step() moves the steps along as the
+# app really starts, and launch_ready() fades it all out before the dashboard loads.
+SPLASH = """<!doctype html><html><head><meta charset="utf-8"><style>
+:root { --accent:@ACCENT@; --glow:@GLOW@; --bg:#080e19; --line:#293b51; --text:#f2f6fb; --dim:#a8b8ca; }
+* { box-sizing:border-box; }
+html, body { height:100%; margin:0; }
+body { display:flex; align-items:center; justify-content:center; overflow:hidden; background:
+       radial-gradient(ellipse at 50% 42%, var(--glow), transparent 55%),
+       repeating-linear-gradient(0deg, transparent 0 31px, rgba(168,184,202,.035) 32px), var(--bg);
+       color:var(--text); font:14px 'Segoe UI', system-ui, sans-serif; user-select:none; cursor:default; }
+main { display:flex; flex-direction:column; align-items:center; gap:22px; transition:opacity .35s, transform .35s; }
+body.ready main { opacity:0; transform:scale(1.04); }
+svg { width:148px; height:148px; overflow:visible; }
+.ring { fill:none; stroke:var(--accent); stroke-width:4.5; stroke-linecap:round; stroke-dasharray:239;
+        stroke-dashoffset:239; transform:rotate(-90deg); transform-origin:60px 60px;
+        animation:draw .9s cubic-bezier(.6,0,.3,1) forwards; }
+.tick { stroke:var(--accent); stroke-width:4.5; stroke-linecap:round; opacity:0;
+        animation:fade .3s ease-out .75s forwards; }
+.bar { fill:var(--text); transform:scaleY(0); transform-box:fill-box; transform-origin:50% 100%;
+       animation:rise .45s cubic-bezier(.3,1.4,.5,1) forwards; }
+.bar.b1 { animation-delay:.9s; } .bar.b2 { animation-delay:1.02s; } .bar.b3 { fill:var(--accent); animation-delay:1.14s; }
+.sweep { fill:none; stroke:var(--accent); stroke-width:2; stroke-linecap:round; stroke-dasharray:34 268;
+         opacity:0; transform-origin:60px 60px; animation:fade .4s 1.3s forwards, spin 1.6s linear 1.3s infinite; }
+h1 { margin:0; font:600 30px/1 Bahnschrift, 'Barlow Condensed', 'Arial Narrow', sans-serif; text-transform:uppercase;
+     letter-spacing:.5em; opacity:0; animation:title .8s cubic-bezier(.2,.7,.2,1) .35s forwards; }
+.sub { margin-top:-12px; color:var(--dim); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+       opacity:0; animation:fade .6s .7s forwards; }
+.steps { display:grid; grid-template-columns:repeat(3, 72px); gap:6px; margin-top:6px; opacity:0; animation:fade .5s .9s forwards; }
+.steps i { height:3px; border-radius:2px; background:var(--line); position:relative; overflow:hidden; }
+.steps i.done { background:var(--accent); }
+.steps i.now::after { content:""; position:absolute; inset:0; width:40%;
+                      background:linear-gradient(90deg, transparent, var(--accent), transparent); animation:scan 1.1s ease-in-out infinite; }
+.status { min-height:18px; margin-top:-10px; color:var(--dim); font:12px ui-monospace, 'Cascadia Mono', Consolas, monospace;
+          letter-spacing:.06em; opacity:0; animation:fade .5s 1s forwards; }
+.slow { position:fixed; bottom:34px; left:0; right:0; text-align:center; color:var(--dim); font-size:12px;
+        opacity:0; animation:fade .8s 14s forwards; }
+.foot { position:fixed; bottom:12px; left:0; right:0; text-align:center; color:#5d6f84; font-size:11px; }
+@keyframes draw { to { stroke-dashoffset:0; } }
+@keyframes rise { to { transform:scaleY(1); } }
+@keyframes fade { to { opacity:1; } }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes title { to { opacity:1; letter-spacing:.16em; } }
+@keyframes scan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::after { animation-duration:0s !important; animation-delay:0s !important; animation-iteration-count:1 !important; }
+  .sweep { display:none; }
+}
+</style></head><body>
+<main>
+  <svg viewBox="0 0 120 120" aria-hidden="true">
+    <circle class="sweep" cx="60" cy="60" r="48"/>
+    <circle class="ring" cx="60" cy="60" r="38"/>
+    <line class="tick" x1="60" y1="14" x2="60" y2="30"/><line class="tick" x1="60" y1="90" x2="60" y2="106"/>
+    <line class="tick" x1="14" y1="60" x2="30" y2="60"/><line class="tick" x1="90" y1="60" x2="106" y2="60"/>
+    <rect class="bar b1" x="43" y="62" width="9" height="16" rx="2"/>
+    <rect class="bar b2" x="55.5" y="52" width="9" height="26" rx="2"/>
+    <rect class="bar b3" x="68" y="42" width="9" height="36" rx="2"/>
+  </svg>
+  <h1>@APP_NAME@</h1>
+  <div class="sub">@SUBTITLE@</div>
+  <div class="steps"><i class="now"></i><i></i><i></i></div>
+  <div class="status" id="status" role="status" aria-live="polite">@FIRST_STEP@</div>
+</main>
+<div class="slow">The first start after installing can take up to a minute while Windows checks the app.</div>
+<div class="foot">@VERSION@ · Unofficial fan project, not affiliated with Ubisoft</div>
+<script>
+const STEPS = @STEP_NAMES@;
+function launch_step(n) {
+  document.querySelectorAll('.steps i').forEach((bar, i) => { bar.className = i < n ? 'done' : i === n ? 'now' : ''; });
+  document.getElementById('status').textContent = STEPS[n] || '';
+}
+function launch_ready() {
+  document.querySelectorAll('.steps i').forEach(bar => { bar.className = 'done'; });
+  document.body.classList.add('ready');
+}
+</script>
+</body></html>"""
+
+# what the app is doing at each step of the launch screen
+LAUNCH_STEPS = ("Checking the app's files", "Starting the stats engine", "Loading your dashboard")
+
+
+def splash_page(theme: dict | None = None) -> str:
+    """The launch screen, in the saved school theme's color, with its name under the app's."""
+    theme = theme or saved_theme()
+    accent = readable_accent(theme.get("primary") or DEFAULT_ACCENT)
+    r, g, b = (int(accent[n:n + 2], 16) for n in (1, 3, 5))
+    values = {
+        "ACCENT": accent, "GLOW": f"rgba({r},{g},{b},.16)", "APP_NAME": html.escape(APP_NAME),
+        "SUBTITLE": html.escape(theme.get("name") or "Rainbow Six Siege match stats"),
+        "VERSION": html.escape(f"v{APP_VERSION}"), "FIRST_STEP": html.escape(LAUNCH_STEPS[0]),
+        # "</" can't end the script early: the names are fixed, but keep it safe to edit
+        "STEP_NAMES": json.dumps(LAUNCH_STEPS).replace("</", "<\\/"),
+    }
+    return re.sub(r"@([A-Z_]+)@", lambda m: values[m.group(1)], SPLASH)  # one pass: names can't inject tokens
+
+
+def show_step(window, step: int) -> None:
+    """Move the launch screen on to `step` (an index into LAUNCH_STEPS). Only cosmetic, so a
+    window that can't run it yet just keeps showing the previous step."""
+    try:
+        window.evaluate_js(f"launch_step({step})")
+    except Exception:
+        pass
+
+
+def finish_launch(window) -> None:
+    """Fade the launch screen out, so the dashboard doesn't cut in abruptly."""
+    try:
+        window.evaluate_js("launch_ready()")
+        time.sleep(0.35)  # the fade's length
+    except Exception:
+        pass
 
 
 def failed_page() -> str:
@@ -235,23 +371,26 @@ def run_window(server: Server) -> int:
     result = {"ok": False}
 
     def load(window) -> None:
-        # the check runs while the window shows "Starting up...", before any server code
+        # the check runs while the launch screen shows its first step, before any server code
         if not server.start():
             window.load_html(tampered_page(server.problems))
             if smoke_file:
                 result["tampered"] = server.problems
                 window.destroy()
             return
+        show_step(window, 1)
         if not wait_until_up(server.proc, server.url):
             window.load_html(failed_page())
             return
+        show_step(window, 2)
+        finish_launch(window)
         window.load_url(server.url)
         if smoke_file:
             result.update(smoke_test(window))
             window.destroy()
 
-    window = webview.create_window(APP_NAME, html=LOADING, width=1440, height=900, min_size=(900, 600),
-                                   background_color="#0d1117", text_select=True)
+    window = webview.create_window(APP_NAME, html=splash_page(), width=1440, height=900, min_size=(900, 600),
+                                   background_color="#080e19", text_select=True)
     webview.start(load, window, private_mode=False, storage_path=str(DATA_DIR / "webview"))
     if smoke_file:
         Path(smoke_file).write_text(json.dumps(result, indent=2), encoding="utf-8")

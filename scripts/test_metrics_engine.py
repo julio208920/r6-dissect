@@ -17,8 +17,9 @@ from unittest import mock
 import file_guard
 import parser as replay_parser
 from metrics_engine import (
-    ATTACK, DEFENSE, PRO_LEAGUE_COLUMNS, compute_match_metrics, leaderboard_rows, pro_league_rows, round_rows,
-    rows_csv, side_label, side_split, win_condition_label,
+    ATTACK, DEFENSE, PRO_LEAGUE_COLUMNS, RoundBreakdown, compute_match_metrics, leaderboard_rows, pro_league_rows,
+    round_player_rows, round_rows, rounds_text, rows_csv, running_scores, side_label, side_split,
+    win_condition_label,
 )
 from parser import (
     ReplayParseError, _stage_match_folder, collect_rec_files, group_by_match, normalize_from_r6_dissect, save_uploads,
@@ -156,8 +157,10 @@ class TestSidesAndOperators(unittest.TestCase):
                          [(ATTACK, "Ash", True), (DEFENSE, "Mute", False)])
         self.assertEqual([(rb.side, rb.operator, rb.won) for rb in b1],
                          [(DEFENSE, "Jäger", False), (ATTACK, "Thermite", True)])
-        self.assertEqual(side_split(a1), {"attack": {"rounds": 1, "won": 1, "kills": 1, "deaths": 0},
-                                          "defense": {"rounds": 1, "won": 0, "kills": 0, "deaths": 1}})
+        self.assertEqual(side_split(a1), {
+            "attack": {"rounds": 1, "won": 1, "kills": 1, "deaths": 0, "operators": {"Ash": 1}},
+            "defense": {"rounds": 1, "won": 0, "kills": 0, "deaths": 1, "operators": {"Mute": 1}},
+        })
 
     def test_unknown_side_and_winner(self):
         r = rnd(0, [])
@@ -188,6 +191,35 @@ class TestSidesAndOperators(unittest.TestCase):
             for rb in s.round_breakdown:
                 self.assertIn(rb.side, (ATTACK, DEFENSE))
                 self.assertTrue(rb.operator)
+
+    def test_highlights(self):
+        rb = RoundBreakdown(round_num=0, kills=3, entry_kill=True, trade_kills=2, planted=True, clutch="1v2",
+                            clutch_attempt="1v2")
+        self.assertEqual(rb.highlights(), [("3K", "pos"), ("Entry kill", "pos"), ("Trade kill ×2", "pos"),
+                                           ("Planted", "pos"), ("Clutch 1v2", "pos")])
+        rb = RoundBreakdown(round_num=0, kills=5, entry_death=True, traded=True, clutch_attempt="1v3")
+        self.assertEqual(rb.highlights(), [("ACE", "pos"), ("Entry death", "neg"), ("Traded", ""), ("Lost 1v3", "")])
+        self.assertEqual(RoundBreakdown(round_num=0, kills=1).highlights(), [])  # one kill isn't a highlight
+
+    def test_running_score_and_round_exports(self):
+        match = normalize_from_r6_dissect({"rounds": [rnd(0, [], winner=1, attack=0), rnd(1, [], winner=0, attack=1),
+                                                      rnd(2, [], winner=0, attack=1)]})
+        self.assertEqual(running_scores(match), [(0, 1), (1, 1), (2, 1)])
+        rows = round_rows(match, compute_match_metrics(match))
+        self.assertEqual([r["score"] for r in rows], [[0, 1], [1, 1], [2, 1]])
+        flat = round_player_rows(rows)
+        self.assertEqual(len(flat), 3 * 10)
+        self.assertEqual({k: flat[0][k] for k in ("Round", "Player", "Team", "Side", "Result", "Survived")},
+                         {"Round": 1, "Player": "a1", "Team": "Alpha", "Side": "Attack", "Result": "Lost",
+                          "Survived": "Yes"})
+        text = rounds_text(match).splitlines()
+        self.assertEqual(text[0], "Rounds")
+        self.assertEqual(text[1].split(), ["Round", "Alpha", "Bravo", "Score", "How", "it", "was", "won", "Site"])
+        self.assertEqual(text[2].split()[:5], ["1", "ATK", "DEF", "WIN", "0-1"])
+        self.assertEqual(text[4].split()[:5], ["3", "DEF", "WIN", "ATK", "2-1"])
+
+    def test_demo_final_score_matches_its_rounds(self):
+        self.assertEqual(list(running_scores(SAMPLE_MATCH)[-1]), SAMPLE_MATCH["final_score"])
 
     def test_labels(self):
         self.assertEqual(side_label(ATTACK), "⚔\ufe0e Attack")

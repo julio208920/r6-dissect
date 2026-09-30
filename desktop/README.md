@@ -44,7 +44,11 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
 
 - `launcher.py` is the entry point. It opens the app window, starts the
   dashboard's server as a hidden copy of itself (`R6MatchStats.exe --serve`),
-  and stops the server when the window closes. Opening the app while it's
+  and stops the server when the window closes. While the server starts, the
+  window shows a launch screen: the app's icon draws itself in the saved school
+  theme's color, and a three-step bar follows the real startup (checking the
+  app's files, starting the stats engine, loading the dashboard) before it fades
+  into the dashboard. It respects Windows' "reduce animations" setting. Opening the app while it's
   already open brings the existing window to the front. Without WebView2 it
   falls back to the default browser. The app has no console, so Windows would
   give every console program it starts (the replay parser, or Git when

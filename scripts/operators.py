@@ -3,12 +3,12 @@ database) or in the match open on the Dashboard."""
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import streamlit as st
 
 from ask_engine import operator_table
-from metrics_engine import compute_match_metrics
+from metrics_engine import compute_match_metrics, side_label
 from sources import current_source, match_time, open_stats_db, parse, sync_with_progress
 from ui import md
 
@@ -26,6 +26,7 @@ def this_match(match: dict) -> None:
                    for rb in s.round_breakdown}
     records: dict[str, dict] = defaultdict(lambda: {
         "picks": 0, "round_wins": 0, "kills": 0, "deaths": 0, "sites": defaultdict(lambda: [0, 0]),
+        "sides": Counter(),
     })
     total_picks = 0
     for round_data in match.get("rounds", []):
@@ -46,6 +47,8 @@ def this_match(match: dict) -> None:
             if rb is not None:
                 row["kills"] += rb.kills
                 row["deaths"] += rb.deaths
+                if rb.side:
+                    row["sides"][rb.side] += 1
     if not records:
         st.info("This replay doesn't include operator selections. Try a recent match replay.")
         return
@@ -53,6 +56,7 @@ def this_match(match: dict) -> None:
     for name, record in sorted(records.items(), key=lambda item: (-item[1]["picks"], item[0])):
         rows.append({
             "Operator": name,
+            "Side": side_label(record["sides"].most_common(1)[0][0]) if record["sides"] else "",
             "Picks": record["picks"],
             "Pick rate": f"{record['picks'] / total_picks:.0%}" if total_picks else "0%",
             "Round win rate": f"{record['round_wins'] / record['picks']:.0%}",
@@ -66,6 +70,16 @@ def this_match(match: dict) -> None:
     st.dataframe(rows, hide_index=True)
     st.subheader("Site performance")
     st.dataframe(site_rows, hide_index=True)
+
+
+def operator_sides(db, player_key: str) -> dict[str, str]:
+    """Each operator's side ("⚔ Attack" or "♜ Defense"), from the rounds this player picked it in."""
+    sides: dict[str, str] = {}
+    for r in db.query("SELECT operator, side, COUNT(*) AS n FROM round_players WHERE player_key = ? "
+                      "AND operator IS NOT NULL AND side IS NOT NULL GROUP BY operator, side ORDER BY n DESC",
+                      (player_key,)):
+        sides.setdefault(r["operator"], side_label(r["side"]))  # the side it was picked on most
+    return sides
 
 
 def open_match() -> tuple[dict | None, bool]:
@@ -106,7 +120,9 @@ else:
             st.stop()
         keys = sorted(players, key=lambda k: (k != (me or "").casefold(), players[k].casefold()))
         player = st.selectbox("Player", keys, format_func=lambda k: players[k] + (" (you)" if players[k] == me else ""))
-        table = operator_table(db, player)
+        sides = operator_sides(db, player)
+        table = [{"Operator": r["Operator"], "Side": sides.get(r["Operator"], ""),
+                  **{k: v for k, v in r.items() if k != "Operator"}} for r in operator_table(db, player)]
     if not table:
         st.info(f"No operator picks recorded for {md(players[player])}.")
     else:

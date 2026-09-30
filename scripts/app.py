@@ -88,8 +88,29 @@ table.pl.rounds td.left { text-align:left; }
 .side.attack { color:var(--atk); border-color:rgba(232,146,74,.45); background:rgba(232,146,74,.1); }
 .side.defense { color:var(--def); border-color:rgba(106,164,221,.45); background:rgba(106,164,221,.1); }
 .side.unknown { color:var(--dim); border-color:var(--border); }
-.side-split { display:flex; flex-wrap:wrap; gap:8px 24px; margin:6px 0 14px; color:var(--dim); font-size:.86rem; }
-.side-split b { color:var(--text); font-weight:600; }
+.win-tag { margin-left:8px; padding:1px 6px; border:1px solid var(--accent); border-radius:2px; color:var(--accent);
+           font:700 9px var(--mono); letter-spacing:.08em; vertical-align:1px; }
+table.pl.rounds td.score { font:600 .9rem var(--mono); color:var(--text); }
+table.pl.rounds td.score span { color:var(--dim); margin:0 3px; }
+table.pl.rounds td.op { font-weight:600; }
+table.pl.rounds td.kda { font-family:var(--mono); }
+table.pl.rounds tr.missed td { color:var(--dim); font-style:italic; }
+table.pl caption .cap-sub { margin-left:10px; color:var(--dim); font:500 11px var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:8px; vertical-align:1px; }
+.dot.alive { background:var(--pos); box-shadow:0 0 6px rgba(134,185,159,.55); }
+.dot.dead { background:var(--neg); }
+.chip { display:inline-block; margin:1px 6px 1px 0; padding:2px 8px; border-radius:10px; border:1px solid var(--border);
+        font-size:.76rem; line-height:1.35; color:var(--text); background:rgba(168,184,202,.07); white-space:nowrap; }
+.chip.pos { border-color:rgba(134,185,159,.5); color:var(--pos); background:rgba(134,185,159,.1); }
+.chip.neg { border-color:rgba(225,126,105,.5); color:var(--neg); background:rgba(225,126,105,.1); }
+.none { color:var(--dim); }
+.side-split { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
+.side-card { flex:1 1 260px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:10px 14px;
+             border:1px solid var(--border); border-left:3px solid var(--atk); border-radius:4px;
+             background:rgba(24,30,32,.55); color:var(--dim); font-size:.86rem; }
+.side-card.defense { border-left-color:var(--def); }
+.side-card b { color:var(--text); font-weight:600; }
+.side-card .ops { flex-basis:100%; font-size:.8rem; }
 @media(max-width:700px) { .stMainBlockContainer { padding-left:1rem; padding-right:1rem; } h1 { font-size:1.8rem !important; } }
 </style>
 """, unsafe_allow_html=True)

@@ -17,7 +17,8 @@ import streamlit as st
 from app_info import APP_NAME, APP_VERSION, NOTICE, is_public_host, is_windows_app
 from metrics_engine import (
     PRO_LEAGUE_COLUMNS, SIDE_ICONS, SIDE_NAMES, compute_match_metrics, leaderboard_rows, pro_league_rows,
-    round_rows, rows_csv, scoreboard_text, side_split, team_side, win_condition_label,
+    round_player_rows, round_rows, rounds_text, rows_csv, running_scores, scoreboard_text, side_split, team_side,
+    win_condition_label,
 )
 from parser import (
     ReplayParseError, find_replay_folders, load_demo_match, r6_dissect_available, raw_shape_preview, save_uploads,
@@ -64,20 +65,23 @@ def scoreboard_html(team_name: str, won: bool, rows: list[dict]) -> str:
 def side_badge(side: str | None) -> str:
     """"⚔ ATTACK" in orange or "♜ DEFENSE" in blue, R6 broadcast colors."""
     if side not in SIDE_ICONS:
-        return '<span class="side unknown">—</span>'
-    return f'<span class="side {side}"><span class="ico">{SIDE_ICONS[side]}</span>{SIDE_NAMES[side]}</span>'
+        return '<span class="side unknown" title="The replay doesn\'t say which side">—</span>'
+    return (f'<span class="side {side}" title="{SIDE_NAMES[side]}"><span class="ico" aria-hidden="true">'
+            f'{SIDE_ICONS[side]}</span>{SIDE_NAMES[side]}</span>')
 
 
 def rounds_html(match: dict) -> str:
-    """Every round of the match: the side each team played, who won and how, and the site."""
+    """Every round of the match: the side each team played, who won, the score after it, how it
+    was won and the site."""
     names = match["team_names"][:2]
-    head = "".join(f"<th>{html.escape(c)}</th>" for c in ("Round", *names, "How it was won", "Site"))
+    head = "".join(f"<th>{html.escape(c)}</th>" for c in ("Round", *names, "Score", "How it was won", "Site"))
     body = []
-    for number, rnd in enumerate(match["rounds"], 1):
+    for number, (rnd, score) in enumerate(zip(match["rounds"], running_scores(match)), 1):
         cells = [f"<td>{number}</td>"]
         for team in range(len(names)):
-            won = '<span class="won">WIN</span>' if rnd.get("winner_team") == team else ""
+            won = '<span class="win-tag">WIN</span>' if rnd.get("winner_team") == team else ""
             cells.append(f"<td>{side_badge(team_side(team, rnd.get('attack_team')))}{won}</td>")
+        cells.append(f'<td class="score">{score[0]}<span>–</span>{score[1]}</td>')
         how = win_condition_label(rnd.get("win_condition")) or "—"
         cells.append(f"<td>{html.escape(how)}</td>")
         cells.append(f'<td class="left">{html.escape(rnd.get("site") or "—")}</td>')
@@ -86,28 +90,48 @@ def rounds_html(match: dict) -> str:
             f"<thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 
 
-def player_rounds_html(player: str, breakdown: list, round_numbers: dict[int, int]) -> str:
-    """One player's rounds: side, operator, whether their team won, and what they did."""
-    head = "".join(f"<th>{c}</th>" for c in ("Round", "Side", "Operator", "Result", "Performance"))
+def _chips(rb) -> str:
+    chips = "".join(f'<span class="chip {tone}">{html.escape(label)}</span>' for label, tone in rb.highlights())
+    return chips or '<span class="none">—</span>'
+
+
+def player_rounds_html(player: str, team: str, match: dict, breakdown: list) -> str:
+    """One player's rounds, every round of the match in order: side, operator, whether their
+    team won, K-D-A (with a dot for survived or died) and what stood out. Rounds the player
+    wasn't in (they left or joined late) say so."""
+    by_round = {rb.round_num: rb for rb in breakdown}
+    head = "".join(f"<th>{c}</th>" for c in ("Round", "Side", "Operator", "Result", "K-D-A", "Highlights"))
     body = []
-    for i, rb in enumerate(breakdown, 1):
+    for number, rnd in enumerate(match["rounds"], 1):
+        rb = by_round.get(rnd["round_num"])
+        if rb is None:
+            body.append(f'<tr class="missed"><td>{number}</td><td colspan="5" class="left">Didn\'t play this round</td></tr>')
+            continue
         result = {True: '<span class="pos">Won</span>', False: '<span class="neg">Lost</span>'}.get(rb.won, "—")
+        alive = ('<span class="dot alive" title="Survived"></span>' if rb.survived
+                 else '<span class="dot dead" title="Died"></span>')
         body.append(
-            f"<tr><td>{round_numbers.get(rb.round_num, i)}</td><td>{side_badge(rb.side)}</td>"
-            f"<td>{html.escape(rb.operator or '—')}</td><td>{result}</td>"
-            f'<td class="left">{"🟢" if rb.survived else "🔴"} {html.escape(rb.summary())}</td></tr>'
+            f"<tr><td>{number}</td><td>{side_badge(rb.side)}</td>"
+            f'<td class="op">{html.escape(rb.operator or "—")}</td><td>{result}</td>'
+            f'<td class="kda">{alive}{rb.kills}-{rb.deaths}-{rb.assists}</td>'
+            f'<td class="left">{_chips(rb)}</td></tr>'
         )
-    return (f'<div class="pl-wrap"><table class="pl rounds"><caption>{html.escape(player)}</caption>'
+    return (f'<div class="pl-wrap"><table class="pl rounds"><caption>{html.escape(player)}'
+            f'<span class="cap-sub">{html.escape(team)}</span></caption>'
             f"<thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 
 
 def side_split_html(breakdown: list) -> str:
-    """"⚔ ATTACK 5 rounds · 3 won · 6-4 K-D   ♜ DEFENSE ..." for one player."""
-    parts = [
-        f'<span>{side_badge(side)} <b>{s["rounds"]}</b> round{"s" if s["rounds"] != 1 else ""} · '
-        f'<b>{s["won"]}</b> won · <b>{s["kills"]}-{s["deaths"]}</b> K-D</span>'
-        for side, s in side_split(breakdown).items()
-    ]
+    """"⚔ ATTACK 6 rounds · 5 won · 9-2 K-D · Ash ×6" for one player, then the same for defense."""
+    parts = []
+    for side, s in side_split(breakdown).items():
+        ops = " · ".join(f"{html.escape(op)} <b>×{n}</b>" for op, n in list(s["operators"].items())[:3])
+        parts.append(
+            f'<div class="side-card {side}">{side_badge(side)}'
+            f'<div><b>{s["rounds"]}</b> round{"s" if s["rounds"] != 1 else ""} · <b>{s["won"]}</b> won · '
+            f'<b>{s["kills"]}-{s["deaths"]}</b> K-D</div>'
+            + (f'<div class="ops">{ops}</div>' if ops else "") + "</div>"
+        )
     return f'<div class="side-split">{"".join(parts)}</div>' if parts else ""
 
 
@@ -319,22 +343,27 @@ with st.expander("Season tracker", expanded=False):
                 st.warning(warning)
         st.caption(f"{len(tracked)} players tracked in {tracker_season}. Re-importing a match never counts a round twice.")
 
-c1, c2, c3, _ = st.columns([1, 1, 1, 3])
+rounds = round_rows(match, stats)
+c1, c2, c3, c4, _ = st.columns([1, 1, 1, 1.4, 2])
 c1.download_button("⬇ CSV", rows_csv([{"Player": r["Player"], "Team Name": team_names[r["Team"]], **r}
                                        for r in leaderboard_rows(stats)]).encode("utf-8"),
                    file_name=f"{match['match_id']}_stats.csv", mime="text/csv")
 c2.download_button("⬇ JSON", json.dumps({
     "map": match["map"], "match_id": match["match_id"], "teams": team_names,
-    "score": score, "players": rows, "rounds": round_rows(match, stats)},
+    "score": score, "players": rows, "rounds": rounds},
     indent=2, ensure_ascii=False).encode("utf-8"),
     file_name=f"{match['match_id']}_stats.json", mime="application/json")
-c3.download_button("⬇ TXT", (scoreboard_text(match, rows) + "\n").encode("utf-8"),
+c3.download_button("⬇ TXT", (scoreboard_text(match, rows) + "\n\n" + rounds_text(match) + "\n").encode("utf-8"),
                    file_name=f"{match['match_id']}_stats.txt", mime="text/plain")
+c4.download_button("⬇ Rounds CSV", rows_csv(round_player_rows(rounds)).encode("utf-8"),
+                   file_name=f"{match['match_id']}_rounds.csv", mime="text/csv",
+                   help="One row per player per round: side, operator, result, K-D-A and highlights.")
 
 # ------------------------------------------------------------ breakdown ---
 st.subheader("Round-by-round")
 st.markdown(rounds_html(match), unsafe_allow_html=True)
-player = st.selectbox("Player", [r["Player"] for r in rows], key="r6_round_player")
+player = st.selectbox("Player", [r["Player"] for r in rows], key="r6_round_player",
+                      format_func=lambda name: f"{name} · {team_names[stats[name].team]}")
 s = stats[player]
 for col, (label, value) in zip(st.columns(3) + st.columns(3), (
     ("EPS", s.eps),
@@ -345,15 +374,15 @@ for col, (label, value) in zip(st.columns(3) + st.columns(3), (
     ("Traded-Trade kills", f"{s.trades}-{s.trade_kills}"),
 )):
     col.metric(label, value)
-# numbered by play order, like the round files (r6-dissect counts rounds from 0)
-round_numbers = {rnd["round_num"]: i for i, rnd in enumerate(match["rounds"], 1)}
-st.markdown(side_split_html(s.round_breakdown) + player_rounds_html(player, s.round_breakdown, round_numbers),
-            unsafe_allow_html=True)
+st.markdown(side_split_html(s.round_breakdown)
+            + player_rounds_html(player, team_names[s.team], match, s.round_breakdown), unsafe_allow_html=True)
 
 with st.expander("Stat definitions"):
     st.markdown(
         "- **⚔︎ Attack / ♜ Defense**: the side the player's team played that round. "
-        "**Operator**: who they picked that round.\n"
+        "**Operator**: who they picked that round. **Score**: the score after that round.\n"
+        "- **Highlights**: a multikill (2K to ACE), the round's entry kill or death, trade kills, a death "
+        "that was traded, the defuser planted or disabled, and clutches won (or lost) as the last one alive.\n"
         "- **EPS**: performance score centered on 100 (match average). Ubisoft hasn't published "
         "its EPS formula; this one combines KPR, deaths, KOST, entry differential, multikills, "
         "clutches, objectives and trade kills, weighted against everyone in this match.\n"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -62,6 +63,50 @@ class TestSmokeTest(unittest.TestCase):
         for text in (themed, "Dashboard", "Match Report"):
             self.assertTrue(launcher.dashboard_is_rendered(text), text)
         self.assertFalse(launcher.dashboard_is_rendered("R6 Match Stats is starting..."))
+
+
+class TestLaunchScreen(unittest.TestCase):
+    def saved(self, content: str | None) -> dict:
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(launcher, "DATA_DIR", Path(td)):
+            if content is not None:
+                Path(td, "appearance.json").write_text(content, encoding="utf-8")
+            return launcher.saved_theme()
+
+    def test_uses_the_saved_school_theme(self):
+        theme = self.saved(json.dumps({"name": "Test U Varsity", "primary": "#c8102e"}))
+        self.assertEqual(theme, {"primary": "#c8102e", "name": "Test U Varsity"})
+
+    def test_falls_back_to_the_default_theme(self):
+        default = {"primary": launcher.DEFAULT_ACCENT, "name": ""}
+        for content in (None, "not json", "[]", json.dumps({"name": "Siege / NECC", "primary": "red"})):
+            self.assertEqual(self.saved(content), default, content)
+
+    def test_page_shows_the_app_its_steps_and_the_school(self):
+        page = launcher.splash_page({"primary": "#c8102e", "name": "<b>Test U</b> @VERSION@"})
+        self.assertIn(launcher.APP_NAME, page)
+        self.assertIn(launcher.readable_accent("#c8102e"), page)
+        self.assertIn("&lt;b&gt;Test U&lt;/b&gt; @VERSION@", page)  # escaped, and never filled in as a token
+        self.assertNotIn("<b>Test U", page)
+        self.assertEqual(re.findall(r"@[A-Z_]+@", page), ["@VERSION@"])  # every token filled in, once
+        for step in launcher.LAUNCH_STEPS:
+            self.assertIn(json.dumps(step), page)
+        self.assertIn("function launch_step(", page)
+        self.assertIn("function launch_ready(", page)
+        self.assertIn("prefers-reduced-motion", page)
+        self.assertFalse(launcher.dashboard_is_rendered(""))  # the smoke test reads the app's page, not this
+
+    def test_readable_accent_lightens_dark_colors(self):
+        self.assertEqual(launcher.readable_accent("#002855"), "#919191")
+        self.assertEqual(launcher.readable_accent("#52d5f2"), "#91d5f2")
+
+    def test_steps_never_stop_the_launch(self):
+        window = mock.Mock()
+        window.evaluate_js.side_effect = RuntimeError("page not loaded yet")
+        launcher.show_step(window, 1)  # no exception
+        launcher.finish_launch(window)
+        window.evaluate_js.side_effect = None
+        launcher.show_step(window, 2)
+        window.evaluate_js.assert_called_with("launch_step(2)")
 
 
 if __name__ == "__main__":
