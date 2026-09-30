@@ -7,7 +7,7 @@ UI, metrics engine, and rating formula can be exercised and verified
 without needing r6-dissect installed or a real .rec file on hand.
 
 9 rounds on Bank, Team Liquid (team 0) vs Spacestation (team 1),
-final score 5-4 to Liquid. Includes at least one clutch (1v2), several
+final score 6-3 to Liquid. Includes at least one clutch (1v2), several
 entry kills/deaths, a trade, and a multi-kill round, so every metric in
 metrics_engine.py has at least one non-zero example to validate against.
 """
@@ -158,7 +158,7 @@ ev += kd(80.0, "Kanto", "HotShot")
 ev += kd(90.0, "Kanto", "Bosco")
 ROUNDS.append(_round(8, 0, "bomb_detonated", "CCTV/Archives", ev, [], attack_team=0))
 
-# Round 9: Spacestation attacks, Liquid wins on kills (match point, 5-4)
+# Round 9: Spacestation attacks, Liquid wins on kills
 ev = []
 ev += kd(10.0, "Sacri", "Bosco")
 ev += kd(24.0, "Fabian", "HotShot", headshot=True)
@@ -179,7 +179,7 @@ SAMPLE_MATCH = {
     "map": "Bank",
     "match_id": "demo-match-0001",
     "team_names": ["Team Liquid", "Spacestation Gaming"],
-    "final_score": [5, 4],
+    "final_score": [sum(r["winner_team"] == team for r in ROUNDS) for team in (0, 1)],  # 6-3
     "players": PLAYERS,
     "rounds": ROUNDS,
 }

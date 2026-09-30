@@ -68,11 +68,22 @@ On the public website only **Upload** is offered: folder paths would read the
 web server's disk, so they're only available to someone on the same computer
 as the app.
 
-Below the scoreboards you'll find CSV, JSON and TXT downloads and a round-by-round
-section: a table of every round showing which side each team played (⚔ attack,
-♜ defense), who won and how, and the site, then each player's rounds with their
-side, operator, result and what they did, plus their attack/defense split. The
-JSON download includes the same per-round data. The **Use demo match** toggle loads a built-in
+Below the scoreboards you'll find the downloads and a round-by-round section:
+
+- **Rounds**: every round, with the side each team played (⚔ attack, ♜ defense),
+  who won, the score after the round, how it was won and the site.
+- **Each player's rounds**: their side, operator, whether their team won, K-D-A
+  (a green dot if they survived, red if they died) and highlights: multikills
+  (2K to ACE), entry kills and deaths, trade kills, traded deaths, plants,
+  disables and clutches. Rounds they weren't in say so. Above it, their attack
+  and defense split: rounds, rounds won, K-D and the operators they played.
+- **Downloads**: CSV (the scoreboard's numbers), JSON (the scoreboard plus every
+  round), TXT (the scoreboard and the round list as plain text) and Rounds CSV
+  (one row per player per round, for spreadsheets).
+
+Operator Analytics also shows which side each operator is played on.
+
+The **Use demo match** toggle loads a built-in
 sample match, so you can try the dashboard without a replay. The **Get the
 Windows app** page has the download button and install steps.
 

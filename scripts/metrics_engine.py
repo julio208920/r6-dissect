@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections import Counter
 from dataclasses import dataclass, field
 
 TRADE_WINDOW_SECONDS = 10.0
@@ -57,6 +58,7 @@ ATTACK, DEFENSE = "attack", "defense"
 # U+FE0E asks for the plain text glyph, so both symbols take the page's color.
 SIDE_ICONS = {ATTACK: "⚔︎", DEFENSE: "♜"}
 SIDE_NAMES = {ATTACK: "Attack", DEFENSE: "Defense"}
+SIDE_SHORT = {ATTACK: "ATK", DEFENSE: "DEF"}  # for plain text, where the symbols' widths vary
 
 # r6-dissect's winCondition values (dissect/header.go), and the demo match's
 _WIN_CONDITIONS = {
@@ -124,6 +126,30 @@ class RoundBreakdown:
         if self.clutch:
             bits.append(f"clutched {self.clutch}")
         return ", ".join(bits)
+
+    def highlights(self) -> list[tuple[str, str]]:
+        """What stood out this round, as (label, tone) pairs, tone "pos", "neg" or "" (neutral):
+        a multikill ("3K", "ACE"), the opening duel, trades, the defuser and clutches."""
+        out = []
+        if self.kills >= 2:
+            out.append(("ACE" if self.kills >= 5 else f"{self.kills}K", "pos"))
+        if self.entry_kill:
+            out.append(("Entry kill", "pos"))
+        if self.entry_death:
+            out.append(("Entry death", "neg"))
+        if self.trade_kills:
+            out.append(("Trade kill" + (f" ×{self.trade_kills}" if self.trade_kills > 1 else ""), "pos"))
+        if self.traded:
+            out.append(("Traded", ""))
+        if self.planted:
+            out.append(("Planted", "pos"))
+        if self.defused:
+            out.append(("Defused", "pos"))
+        if self.clutch:
+            out.append((f"Clutch {self.clutch}", "pos"))
+        elif self.clutch_attempt:
+            out.append((f"Lost {self.clutch_attempt}", ""))
+        return out
 
 
 @dataclass
@@ -443,19 +469,33 @@ def leaderboard_rows(stats: dict[str, PlayerStats]) -> list[dict]:
     return rows
 
 
-def side_split(breakdown: list[RoundBreakdown]) -> dict[str, dict[str, int]]:
-    """A player's rounds split by side, attack first:
-    {"attack": {"rounds", "won", "kills", "deaths"}, "defense": {...}}.
-    Rounds where the replay doesn't record the side are left out."""
-    split: dict[str, dict[str, int]] = {}
+def side_split(breakdown: list[RoundBreakdown]) -> dict[str, dict]:
+    """A player's rounds split by side, attack first: {"attack": {"rounds", "won", "kills",
+    "deaths", "operators"}, "defense": {...}}, where "operators" counts the rounds on each
+    operator, most played first. Rounds where the replay doesn't record the side are left out."""
+    split: dict[str, dict] = {}
     for rb in breakdown:
         if rb.side in SIDE_ICONS:
-            s = split.setdefault(rb.side, {"rounds": 0, "won": 0, "kills": 0, "deaths": 0})
+            s = split.setdefault(rb.side, {"rounds": 0, "won": 0, "kills": 0, "deaths": 0, "operators": Counter()})
             s["rounds"] += 1
             s["won"] += bool(rb.won)
             s["kills"] += rb.kills
             s["deaths"] += rb.deaths
+            if rb.operator:
+                s["operators"][rb.operator] += 1
+    for s in split.values():
+        s["operators"] = dict(s["operators"].most_common())
     return {side: split[side] for side in (ATTACK, DEFENSE) if side in split}
+
+
+def running_scores(match: dict) -> list[tuple[int, int]]:
+    """The score after each round, in play order: [(1, 0), (1, 1), ...]."""
+    score, out = [0, 0], []
+    for rnd in match["rounds"]:
+        if rnd.get("winner_team") in (0, 1):
+            score[rnd["winner_team"]] += 1
+        out.append((score[0], score[1]))
+    return out
 
 
 def round_rows(match: dict, stats: dict[str, PlayerStats]) -> list[dict]:
@@ -463,6 +503,7 @@ def round_rows(match: dict, stats: dict[str, PlayerStats]) -> list[dict]:
     team attacked and defended, who won and how, the site, and each player's side,
     operator and result that round."""
     names = match["team_names"]
+    scores = running_scores(match)
     played: dict[int, list] = {}
     for s in sorted(stats.values(), key=lambda s: (s.team, s.name.lower())):
         for rb in s.round_breakdown:
@@ -477,13 +518,41 @@ def round_rows(match: dict, stats: dict[str, PlayerStats]) -> list[dict]:
             "defense": names[1 - attackers] if attackers in (0, 1) else None,
             "winner": names[winner] if winner in (0, 1) else None,
             "win_condition": win_condition_label(rnd.get("win_condition")),
+            "score": list(scores[number - 1]),  # after this round, in the order of the match's teams
             "players": [{
                 "player": s.name, "team": names[s.team], "side": rb.side, "operator": rb.operator,
                 "won": rb.won, "kills": rb.kills, "deaths": rb.deaths, "assists": rb.assists,
-                "survived": rb.survived,
+                "survived": rb.survived, "highlights": [label for label, _ in rb.highlights()],
             } for s, rb in played.get(rnd["round_num"], [])],
         })
     return rows
+
+
+def round_player_rows(rounds: list[dict]) -> list[dict]:
+    """round_rows flattened to one row per player per round, for the rounds CSV."""
+    return [{
+        "Round": r["round"], "Site": r["site"], "Player": p["player"], "Team": p["team"],
+        "Side": SIDE_NAMES.get(p["side"], ""), "Operator": p["operator"] or "",
+        "Result": {True: "Won", False: "Lost"}.get(p["won"], ""),
+        "K": p["kills"], "D": p["deaths"], "A": p["assists"], "Survived": "Yes" if p["survived"] else "No",
+        "Highlights": "; ".join(p["highlights"]),
+    } for r in rounds for p in r["players"]]
+
+
+def rounds_text(match: dict) -> str:
+    """Plain-text list of the match's rounds: each team's side (ATK/DEF) with WIN on the winner,
+    the score after the round, how it was won and the site."""
+    names = match["team_names"][:2]
+    header = ["Round", *names, "Score", "How it was won", "Site"]
+    lines = []
+    for number, (rnd, score) in enumerate(zip(match["rounds"], running_scores(match)), 1):
+        sides = [SIDE_SHORT.get(team_side(team, rnd.get("attack_team")), "-")
+                 + (" WIN" if rnd.get("winner_team") == team else "") for team in range(len(names))]
+        lines.append([str(number), *sides, f"{score[0]}-{score[1]}",
+                      win_condition_label(rnd.get("win_condition")) or "-", rnd.get("site") or "-"])
+    widths = [max(len(h), *(len(line[i]) for line in lines)) if lines else len(h) for i, h in enumerate(header)]
+    return "\n".join(["Rounds"] + ["  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip()
+                                  for row in [header, *lines]])
 
 
 def rows_csv(rows: list[dict]) -> str:

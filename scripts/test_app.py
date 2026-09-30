@@ -77,8 +77,8 @@ class TestReportPage(unittest.TestCase):
         at = run_app(R6_HOSTED="1")
         at.toggle[0].set_value(True).run()
         buttons = at.get("download_button")
-        self.assertEqual([b.proto.label for b in buttons], ["⬇ CSV", "⬇ JSON", "⬇ TXT"])
-        self.assertEqual([Path(b.proto.url).suffix for b in buttons], [".csv", ".json", ".txt"])
+        self.assertEqual([b.proto.label for b in buttons], ["⬇ CSV", "⬇ JSON", "⬇ TXT", "⬇ Rounds CSV"])
+        self.assertEqual([Path(b.proto.url).suffix for b in buttons], [".csv", ".json", ".txt", ".csv"])
 
     @staticmethod
     def tracker(at: AppTest):
@@ -136,6 +136,24 @@ class TestReportPage(unittest.TestCase):
         self.assertIn("⚔\ufe0e", player)
         self.assertIn("♜", player)
         self.assertTrue(any('class="side-split"' in m.value for m in at.markdown))
+        self.assertIn('<td class="score">6<span>–</span>3</td>', overview)  # the score after the last round
+        self.assertIn('class="chip pos">Entry kill<', player)
+        self.assertEqual(at.selectbox(key="r6_round_player").format_func(picked), f"{picked} · Team Liquid")
+
+    def test_a_round_the_player_missed_is_listed(self):
+        from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
+
+        match = copy.deepcopy(SAMPLE_MATCH)
+        match["rounds"][1]["players"] = [n for n in TEAM0 + TEAM1 if n != "Fabian"]  # left for a round
+        with mock.patch.object(replay_parser, "load_demo_match", return_value=match):
+            at = run_app(R6_HOSTED="1")
+            at.toggle[0].set_value(True).run()
+            at.selectbox(key="r6_round_player").set_value("Fabian").run()
+        self.assertFalse(at.exception)
+        player = [m.value for m in at.markdown if 'class="pl rounds"' in m.value][1]
+        self.assertEqual(player.count("<tr"), 1 + 9)  # every round is still listed...
+        self.assertIn('<tr class="missed"><td>2</td>', player)  # ...with round 2 as missed
+
 
 class TestOperatorNormalization(unittest.TestCase):
     def test_operator_data_is_preserved_per_round(self):
@@ -284,6 +302,8 @@ class TestAnalyticsPages(unittest.TestCase):
         picked = Counter(rb.operator for rb in compute_match_metrics(SAMPLE_MATCH)["Fabian"].round_breakdown)
         self.assertEqual(dict(zip(table["Operator"], table["Rounds"])), {op: 2 * n for op, n in picked.items()})
         self.assertEqual(set(picked), {"Ash", "Jäger"})  # Fabian's attack and defense picks
+        self.assertEqual(list(table.columns[:2]), ["Operator", "Side"])
+        self.assertEqual(dict(zip(table["Operator"], table["Side"])), {"Ash": "⚔\ufe0e Attack", "Jäger": "♜ Defense"})
 
     def test_operators_in_the_open_match(self):
         from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
@@ -299,6 +319,11 @@ class TestAnalyticsPages(unittest.TestCase):
         picks = {r["Operator"]: r["Picks"] for r in at.dataframe[0].value.to_dict("records")}
         self.assertEqual(picks, Counter(op for rnd in SAMPLE_MATCH["rounds"] for op in rnd["operators"].values()))
         self.assertEqual(sum(picks.values()), len(SAMPLE_MATCH["rounds"]) * len(TEAM0 + TEAM1))
+        from sample_data import ATTACK_OPS, DEFENSE_OPS
+
+        sides = {r["Operator"]: r["Side"] for r in at.dataframe[0].value.to_dict("records")}
+        self.assertEqual(sides, {**{op: "⚔\ufe0e Attack" for op in ATTACK_OPS.values()},
+                                 **{op: "♜ Defense" for op in DEFENSE_OPS.values()}})
         at.session_state["r6_last_match"] = SAMPLE_MATCH  # opened on the Dashboard
         at = at.run()
         self.assertFalse(any("newest match" in c.value for c in at.caption))
