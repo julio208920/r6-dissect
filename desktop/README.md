@@ -86,12 +86,40 @@ version; otherwise it's `APP_VERSION` in `scripts/app_info.py`.
 - `installer.iss` is the Inno Setup script for the installer. Before
   installing, it shows the notice that the app is unofficial and what it does
   and doesn't do.
-- `build.ps1` builds `r6-dissect.exe`, runs PyInstaller, zips the result and
+- `build.ps1` builds `r6-dissect.exe`, runs PyInstaller, signs the programs
+  when it has a certificate (see **Code signing**), zips the result and
   builds the installer. It also stamps `build\repo.txt` (the GitHub repo the
   app checks for updates), `build\version.txt` and `build\notice.txt`, writes
   the file list for the integrity check, and writes `dist\SHA256SUMS.txt`.
 - `assets\app.ico` is the icon (with `scripts\icon.png`, the page's favicon),
   drawn by `make_icon.py`.
+
+## Code signing
+
+When the build has a code-signing certificate, it signs everything it produces:
+- `R6MatchStats.exe` and `r6-dissect.exe`, right after PyInstaller. Signing changes a file, so this has to happen before the app's file list records their SHA-256s.
+- The installer and its uninstaller, through Inno Setup.
+
+`sign.ps1` signs with the Windows SDK's `signtool` and timestamps every signature, so signatures stay valid after the certificate expires.
+
+To sign releases, add two repository secrets in **Settings > Secrets and variables > Actions**:
+
+- `WINDOWS_SIGNING_CERT`: the certificate's `.pfx` file, base64-encoded. In PowerShell,
+  `[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\cert.pfx")) | Set-Clipboard`
+  copies it, ready to paste.
+- `WINDOWS_SIGNING_PASSWORD`: the `.pfx` file's password.
+
+From then on, the **Windows app** workflow signs each release and checks every signature: signed with this certificate, timestamped, and valid. It also attaches `SIGNATURE.txt`, which names the signer and gives the certificate's thumbprint. The download page shows both so people can check their download.
+
+Without the secrets:
+- Releases are published unsigned, and the workflow warns about it.
+- Every other build signs with a throwaway certificate, so the signing steps are still tested on each build.
+
+To sign a build on your own PC, set `R6_SIGN_PFX` to the `.pfx` file and `R6_SIGN_PFX_PASSWORD` to its password before running `build.ps1`.
+
+Only a certificate from a certificate authority that Windows trusts replaces "Unknown publisher" with your name. A self-signed certificate doesn't. Even with a trusted certificate, SmartScreen may keep warning while the certificate is new, until enough people have downloaded apps signed with it.
+
+Since June 2023, certificate authorities have issued new code-signing certificates only on hardware keys, and those can't be exported as a `.pfx`. A `.pfx` fits a certificate issued before then. A newer certificate needs its provider's cloud signing service in place of `sign.ps1`'s `/f` option.
 
 The app writes its log to `%LOCALAPPDATA%\R6MatchStats\app.log`, and its stats
 database (every match it reads, the teams you build and tracked season stats)

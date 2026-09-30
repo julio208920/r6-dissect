@@ -35,11 +35,60 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Signing certificate
+        shell: pwsh
+        env:
+          CERT: ${{ secrets.WINDOWS_SIGNING_CERT }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          # The app's code-signing certificate: the WINDOWS_SIGNING_CERT secret (the .pfx file, base64)
+          # and WINDOWS_SIGNING_PASSWORD (see desktop/README.md). Without them, releases are published
+          # unsigned, and other builds sign with a throwaway certificate so signing is tested every time.
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          if ($env:CERT) {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT))
+            $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:CERT_PASSWORD)
+            "R6_SIGN_TRUSTED=1" >> $env:GITHUB_ENV
+          } elseif ($env:EVENT -ne "release") {
+            $password = [guid]::NewGuid().ToString()
+            $made = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=R6 Match Stats test signing" `
+              -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(2)
+            Export-PfxCertificate -Cert $made -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+            Remove-Item "Cert:\CurrentUser\My\$($made.Thumbprint)"
+            $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $password)
+            "R6_TEST_SIGN_PASSWORD=$password" >> $env:GITHUB_ENV  # a throwaway certificate's: not a secret
+            "No WINDOWS_SIGNING_CERT secret: signing this test build with a throwaway certificate."
+          } else {
+            "::warning::No WINDOWS_SIGNING_CERT secret, so this release is unsigned. See desktop/README.md."
+            exit 0
+          }
+          "Signing with $($cert.Subject), thumbprint $($cert.Thumbprint), valid until $($cert.NotAfter)"
+          "R6_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+          "R6_SIGN_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
       - name: Build
         shell: pwsh
         env:
           R6_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          R6_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD || env.R6_TEST_SIGN_PASSWORD }}
         run: ./desktop/build.ps1
+
+      - name: Check signatures
+        if: env.R6_SIGN_THUMBPRINT != ''
+        shell: pwsh
+        run: |
+          $files = @("dist\R6MatchStats\R6MatchStats.exe", "dist\R6MatchStats-Setup.exe") +
+            @(Get-ChildItem dist\R6MatchStats -Recurse -Filter r6-dissect.exe | ForEach-Object FullName)
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file
+            "$file`: $($signature.Status), signed by $($signature.SignerCertificate.Subject), timestamped: $([bool]$signature.TimeStamperCertificate)"
+            if ($signature.SignerCertificate.Thumbprint -ne $env:R6_SIGN_THUMBPRINT) { throw "$file isn't signed with the app's certificate" }
+            if (-not $signature.TimeStamperCertificate) { throw "$file's signature isn't timestamped" }
+            # a trusted certificate's signatures must check out; a throwaway one's root isn't trusted
+            if ($env:R6_SIGN_TRUSTED -and $signature.Status -ne "Valid") { throw "$file's signature isn't valid: $($signature.StatusMessage)" }
+          }
+          Get-Content dist\SIGNATURE.txt
 
       - name: Test
         shell: pwsh
@@ -89,6 +138,10 @@ jobs:
           $lnk = Get-Item $startMenu
           $id = (New-Object -ComObject Shell.Application).NameSpace($lnk.DirectoryName).ParseName($lnk.Name).ExtendedProperty("System.AppUserModel.ID")
           if ($id -ne "R6MatchStats.Desktop") { throw "the Start menu shortcut's AppUserModelID is '$id'" }
+          if ($env:R6_SIGN_THUMBPRINT) {  # the installer made its uninstaller signed too
+            $uninstaller = (Get-AuthenticodeSignature "$env:LOCALAPPDATA\Programs\R6 Match Stats\unins000.exe").SignerCertificate
+            if ($uninstaller.Thumbprint -ne $env:R6_SIGN_THUMBPRINT) { throw "the uninstaller isn't signed with the app's certificate" }
+          }
           $info = (Get-Item $app).VersionInfo
           "Installed $($info.ProductName) $($info.ProductVersion) to $app"
 
@@ -139,4 +192,12 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/R6MatchStats-Setup.exe dist/R6MatchStats-Windows.zip dist/SHA256SUMS.txt --clobber
+        run: |
+          $files = "dist/R6MatchStats-Setup.exe", "dist/R6MatchStats-Windows.zip", "dist/SHA256SUMS.txt"
+          if (Test-Path dist/SIGNATURE.txt) { $files += "dist/SIGNATURE.txt" }  # who signed it, when it's signed
+          gh release upload "${{ github.event.release.tag_name }}" @files --clobber
+
+      - name: Remove the signing certificate
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP "signing.pfx") -ErrorAction SilentlyContinue

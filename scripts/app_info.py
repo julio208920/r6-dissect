@@ -8,6 +8,7 @@ plus where the app is running (public website, Windows app, or a source checkout
 from __future__ import annotations
 
 import ipaddress
+import itertools
 import json
 import logging
 import os
@@ -35,6 +36,7 @@ APP_VERSION = (_stamped_version.read_text().strip() if _stamped_version.is_file(
 WINDOWS_INSTALLER = "R6MatchStats-Setup.exe"
 WINDOWS_ZIP = "R6MatchStats-Windows.zip"  # the portable version: no install, run from any folder
 CHECKSUMS = "SHA256SUMS.txt"  # SHA-256 of both, written by desktop/build.ps1
+SIGNATURE = "SIGNATURE.txt"  # who code-signed them, written by desktop/build.ps1 when it signs
 DEFAULT_REPO = "julio208920/r6-dissect"
 
 
@@ -76,9 +78,9 @@ def release_version(tag: str) -> str:
 
 def latest_release(repo: str = GITHUB_REPO) -> dict | None:
     """The newest published release that carries the Windows app, from the GitHub API:
-    {"version", "url", "installer", "zip", "sha256"} ("zip" and the installer's
-    "sha256" may be None). None if the repo has no such release yet. Raises OSError
-    if GitHub can't be reached."""
+    {"version", "url", "installer", "zip", "sha256", "signer"} ("zip", the installer's
+    "sha256" and "signer", {"name", "thumbprint"} of its code signature, may be None). None if
+    the repo has no such release yet. Raises OSError if GitHub can't be reached."""
     with _get(f"https://api.github.com/repos/{repo}/releases?per_page=20") as response:
         releases = json.load(response)
     for release in releases:
@@ -88,7 +90,25 @@ def latest_release(repo: str = GITHUB_REPO) -> dict | None:
         if WINDOWS_INSTALLER in assets:
             return {"version": release_version(release["tag_name"]), "url": release["html_url"],
                     "installer": assets[WINDOWS_INSTALLER], "zip": assets.get(WINDOWS_ZIP),
-                    "sha256": _published_sha256(assets.get(CHECKSUMS), WINDOWS_INSTALLER)}
+                    "sha256": _published_sha256(assets.get(CHECKSUMS), WINDOWS_INSTALLER),
+                    "signer": _published_signer(assets.get(SIGNATURE))}
+    return None
+
+
+def _published_signer(signature_url: str | None) -> dict | None:
+    """{"name", "thumbprint"} of the certificate a release was signed with, from its SIGNATURE.txt
+    ("Signed by: NAME" and "Thumbprint: 40 hex digits"), if it has one."""
+    if not signature_url:
+        return None
+    try:
+        with _get(signature_url, accept="application/octet-stream") as response:
+            text = response.read(4096).decode("utf-8-sig", errors="replace")
+    except OSError:
+        return None
+    fields = dict(line.strip().partition(": ")[::2] for line in text.splitlines() if ": " in line)
+    name, thumbprint = fields.get("Signed by", "").strip(), fields.get("Thumbprint", "").strip().upper()
+    if name and re.fullmatch(r"[0-9A-F]{40}", thumbprint):
+        return {"name": name[:120], "thumbprint": thumbprint}
     return None
 
 
@@ -131,6 +151,7 @@ def desktop_data_dir() -> Path:
 # commands for the Windows app's window (desktop/launcher.py), one small JSON file each
 WINDOW_COMMANDS = "window-commands"
 WINDOW_COMMAND_NAMES = ("dock", "undock")
+_command_numbers = itertools.count()  # Windows' clock can give two quick commands the same time
 
 
 def send_window_command(command: str, **args: str) -> None:
@@ -141,7 +162,8 @@ def send_window_command(command: str, **args: str) -> None:
         raise ValueError(f"unknown window command: {command}")
     folder = desktop_data_dir() / WINDOW_COMMANDS
     folder.mkdir(parents=True, exist_ok=True)
-    name = f"{time.time_ns()}-{os.getpid()}"
+    # sorts oldest first; the counter keeps two commands from one process apart, the process ID two processes'
+    name = f"{time.time_ns():020d}-{next(_command_numbers):06d}-{os.getpid()}"
     temporary = folder / f"{name}.tmp"
     temporary.write_text(json.dumps({"command": command, **args}), encoding="utf-8")
     temporary.replace(folder / f"{name}.json")  # appears whole, never half-written

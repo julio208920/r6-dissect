@@ -550,6 +550,20 @@ class TestDownloadPage(unittest.TestCase):
         self.assertEqual(links(at), [RELEASE["installer"]])
         self.assertIn(RELEASE["zip"], " ".join(c.value for c in at.caption))
 
+    def test_unsigned_release_explains_the_windows_warning(self):
+        at = download_page(RELEASE, R6_HOSTED="1")
+        install = next(m.value for m in at.markdown if "Download **" in m.value)
+        self.assertIn("isn't code-signed yet", install)
+
+    def test_signed_release_names_its_publisher_and_thumbprint(self):
+        thumbprint = "0123456789ABCDEF0123456789ABCDEF01234567"
+        at = download_page({**RELEASE, "signer": {"name": "Jane_Doe", "thumbprint": thumbprint}}, R6_HOSTED="1")
+        self.assertFalse(at.exception)
+        install = next(m.value for m in at.markdown if "Download **" in m.value)
+        self.assertNotIn("isn't code-signed", install)
+        self.assertIn("publisher is **Jane\\_Doe**", install)  # shown as written, not as Markdown
+        self.assertIn(thumbprint, [c.value for c in at.code])
+
     def test_no_release_yet_says_so_instead_of_a_broken_link(self):
         at = download_page(None, R6_HOSTED="1")
         self.assertFalse(at.exception)
@@ -619,6 +633,31 @@ class TestLatestRelease(unittest.TestCase):
             responses.append(response)
         with mock.patch("urllib.request.urlopen", side_effect=responses):
             self.assertEqual(app_info.latest_release("o/r")["sha256"], digest)
+
+    def signer(self, signature: str) -> dict | None:
+        """latest_release's "signer" for a release whose SIGNATURE.txt says `signature`."""
+        releases = io.BytesIO(json.dumps([self.release("v2.0.0", "R6MatchStats-Setup.exe", "SIGNATURE.txt")]).encode())
+        responses = []
+        for body in (releases, io.BytesIO(signature.encode("utf-8-sig"))):  # PowerShell 5 writes a BOM
+            response = mock.MagicMock()
+            response.__enter__.return_value = body
+            responses.append(response)
+        with mock.patch("urllib.request.urlopen", side_effect=responses):
+            return app_info.latest_release("o/r")["signer"]
+
+    def test_published_signer(self):
+        thumbprint = "0123456789abcdef0123456789abcdef01234567"
+        self.assertEqual(self.signer(f"Signed by: Jane Doe\r\nThumbprint: {thumbprint}\r\n"),
+                         {"name": "Jane Doe", "thumbprint": thumbprint.upper()})
+        self.assertIsNone(self.signer("Signed by: Jane Doe\nThumbprint: not-a-thumbprint\n"))
+        self.assertIsNone(self.signer("garbage"))
+
+    def test_no_signature_file_means_unsigned(self):
+        releases = io.BytesIO(json.dumps([self.release("v2.0.0", "R6MatchStats-Setup.exe")]).encode())
+        response = mock.MagicMock()
+        response.__enter__.return_value = releases
+        with mock.patch("urllib.request.urlopen", return_value=response):
+            self.assertIsNone(app_info.latest_release("o/r")["signer"])
 
 
 class TestAppInfo(unittest.TestCase):

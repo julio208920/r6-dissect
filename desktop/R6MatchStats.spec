@@ -34,7 +34,7 @@ hiddenimports = (
     # standard library modules the app files use, which PyInstaller can't see in plain files
     # (scripts/test_app.py checks this list against their imports)
     + ["base64", "collections", "concurrent.futures", "contextlib", "csv", "dataclasses", "datetime", "difflib",
-       "html", "io", "ipaddress", "json", "logging", "os", "pathlib", "re", "shutil", "sqlite3", "subprocess",
+       "html", "io", "ipaddress", "itertools", "json", "logging", "os", "pathlib", "re", "shutil", "sqlite3", "subprocess",
        "sys", "tempfile", "threading", "time", "typing", "unicodedata", "urllib.parse", "urllib.request",
        "zipfile"]
 )

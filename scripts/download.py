@@ -12,6 +12,7 @@ import streamlit as st
 import app_info
 from app_info import (APP_NAME, APP_VERSION, HOW_IT_WORKS, NOTICE, RELEASES_URL, WINDOWS_INSTALLER, WINDOWS_ZIP,
                       is_windows_app, version_tuple)
+from ui import md
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -59,11 +60,19 @@ else:
     st.caption(f"{WINDOWS_INSTALLER} · {version}Windows 10 or 11 (64-bit) · about 65 MB · "
                f"[release notes]({notes_url})")
 
+    signer = release.get("signer") if isinstance(release, dict) else None
+    if signer:
+        # signed: Windows names the publisher, but SmartScreen can still hold back a new certificate
+        protected = (f"2. Windows may show **Windows protected your PC** while the app's certificate is new to "
+                     f"it. Click **More info**, check the publisher is **{md(signer['name'])}**, then click "
+                     "**Run anyway**.\n")
+    else:
+        protected = ("2. If Windows shows **Windows protected your PC**, click **More info**, then **Run anyway**. "
+                     "The app isn't code-signed yet, so Windows doesn't recognize it.\n")
     st.subheader("Install")
     st.markdown(
         f"1. Download **{WINDOWS_INSTALLER}** above and open it.\n"
-        "2. If Windows shows **Windows protected your PC**, click **More info**, then **Run anyway**. "
-        "The app isn't code-signed yet, so Windows doesn't recognize it.\n"
+        + protected +
         "3. Click through the installer. It doesn't need an administrator, and it adds "
         f"**{APP_NAME}** to the Start menu (and, if you like, the desktop).\n"
         f"4. Open **{APP_NAME}** from the Start menu. It opens in its own window and shows your latest match."
@@ -86,6 +95,11 @@ else:
     else:
         st.markdown(f"The **Hash** it prints should match the one for {WINDOWS_INSTALLER} in "
                     f"**{app_info.CHECKSUMS}** on the [release page]({notes_url}).")
+    if signer:
+        st.markdown(f"It's also code-signed by **{md(signer['name'])}**. Right-click the installer, choose "
+                    "**Properties > Digital Signatures**, then **Details > View Certificate > Details**: its "
+                    "**Thumbprint** should be:")
+        st.code(signer["thumbprint"], language=None)
     st.caption("Every time it opens, the app also checks that none of its own files were changed, added "
                "or removed since it was installed, and refuses to run if they were.")
 

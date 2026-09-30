@@ -39,6 +39,21 @@ Set-Content -Path build\version.txt -Value $version -Encoding ascii
 & $python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller desktop\R6MatchStats.spec
 if ($LASTEXITCODE) { throw "PyInstaller failed" }
 
+# Code signing, with the certificate in R6_SIGN_PFX (desktop\sign.ps1): the app's own programs are
+# signed now, before their SHA-256s go into the file list below, and Inno Setup signs the
+# installer and uninstaller. The Python and Windows files PyInstaller bundles come signed already.
+$sign = [bool]$env:R6_SIGN_PFX
+Remove-Item dist\SIGNATURE.txt -ErrorAction SilentlyContinue
+if ($sign) {
+    $env:R6_SIGN_URL = "https://github.com/$repo"
+    $programs = @("dist\R6MatchStats\R6MatchStats.exe") +
+        @(Get-ChildItem dist\R6MatchStats -Recurse -Filter r6-dissect.exe | ForEach-Object FullName)
+    if ($programs.Count -lt 2) { throw "r6-dissect.exe wasn't found in dist\R6MatchStats to sign" }
+    & "$PSScriptRoot\sign.ps1" @programs
+} else {
+    Write-Host "Not signing: set R6_SIGN_PFX (and R6_SIGN_PFX_PASSWORD) to sign the app with a code-signing certificate."
+}
+
 # the list of every file and its SHA-256, which the app checks each time it starts (desktop/integrity.py)
 & $python desktop\integrity.py create dist\R6MatchStats
 if ($LASTEXITCODE) { throw "writing the app's file list failed" }
@@ -70,8 +85,21 @@ if (-not $iscc) {
     $iscc = Find-Iscc
     if (-not $iscc) { throw "Install Inno Setup 6 (https://jrsoftware.org/isdl.php) to build the installer." }
 }
-& $iscc /Q "/DAppVersion=$version" "/DAppRepo=$repo" desktop\installer.iss
+$isccArgs = @("/Q", "/DAppVersion=$version", "/DAppRepo=$repo")
+if ($sign) {
+    # Inno Setup's "r6sign" tool (installer.iss): $q is a quote, $f the file it's signing
+    $isccArgs += "/DSign", ('/Sr6sign=powershell.exe -NoProfile -ExecutionPolicy Bypass -File $q' + "$PSScriptRoot\sign.ps1" + '$q $f')
+}
+& $iscc @isccArgs desktop\installer.iss
 if ($LASTEXITCODE) { throw "Inno Setup failed" }
+
+# who signed it, published with the release so the download page can say (app_info.latest_release)
+if ($sign) {
+    $signer = (Get-AuthenticodeSignature dist\R6MatchStats-Setup.exe).SignerCertificate
+    if (-not $signer) { throw "The installer came out unsigned" }
+    $name = $signer.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
+    Set-Content -Path dist\SIGNATURE.txt -Encoding utf8 -Value "Signed by: $name", "Thumbprint: $($signer.Thumbprint)"
+}
 
 # checksums people can compare their download against (Get-FileHash shows the same value)
 $sums = foreach ($file in "R6MatchStats-Setup.exe", "R6MatchStats-Windows.zip") {
@@ -83,3 +111,4 @@ Write-Host "Built R6 Match Stats $version`:"
 Write-Host "  dist\R6MatchStats-Setup.exe   (installer)"
 Write-Host "  dist\R6MatchStats-Windows.zip (portable)"
 Write-Host "  dist\SHA256SUMS.txt           (checksums of both)"
+if ($sign) { Write-Host "  dist\SIGNATURE.txt           (signed by $name)" } else { Write-Host "  (not code-signed)" }
