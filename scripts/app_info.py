@@ -8,6 +8,7 @@ plus where the app is running (public website, Windows app, or a source checkout
 from __future__ import annotations
 
 import ipaddress
+import itertools
 import json
 import logging
 import os
@@ -131,6 +132,7 @@ def desktop_data_dir() -> Path:
 # commands for the Windows app's window (desktop/launcher.py), one small JSON file each
 WINDOW_COMMANDS = "window-commands"
 WINDOW_COMMAND_NAMES = ("dock", "undock")
+_command_numbers = itertools.count()  # Windows' clock can give two quick commands the same time
 
 
 def send_window_command(command: str, **args: str) -> None:
@@ -141,7 +143,8 @@ def send_window_command(command: str, **args: str) -> None:
         raise ValueError(f"unknown window command: {command}")
     folder = desktop_data_dir() / WINDOW_COMMANDS
     folder.mkdir(parents=True, exist_ok=True)
-    name = f"{time.time_ns()}-{os.getpid()}"
+    # sorts oldest first; the counter keeps two commands from one process apart, the process ID two processes'
+    name = f"{time.time_ns():020d}-{next(_command_numbers):06d}-{os.getpid()}"
     temporary = folder / f"{name}.tmp"
     temporary.write_text(json.dumps({"command": command, **args}), encoding="utf-8")
     temporary.replace(folder / f"{name}.json")  # appears whole, never half-written
