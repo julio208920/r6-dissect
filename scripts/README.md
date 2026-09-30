@@ -276,9 +276,11 @@ To build it on your own PC instead, run
   checksum (the download page shows it) and only download from the official
   release.
 - **Builds are scanned.** The release workflow scans each build with Microsoft
-  Defender and won't publish one it flags. The app isn't code-signed, which is
-  why Windows SmartScreen warns about it. A code-signing certificate would
-  remove that warning.
+  Defender and won't publish one it flags.
+- **Releases are code-signed** once the repository has a signing certificate
+  (see [desktop/README.md](../desktop/README.md#code-signing)). The download
+  page then names the publisher and gives the certificate's thumbprint.
+  Unsigned releases make Windows SmartScreen warn about the app.
 - **Replays are temporary; stats stay on your computer.** The Windows app reads
   replays in place and never writes to the game's folders. Uploads are deleted
   after an hour unused. The stats database (every match's numbers and player

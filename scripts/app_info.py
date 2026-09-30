@@ -36,6 +36,7 @@ APP_VERSION = (_stamped_version.read_text().strip() if _stamped_version.is_file(
 WINDOWS_INSTALLER = "R6MatchStats-Setup.exe"
 WINDOWS_ZIP = "R6MatchStats-Windows.zip"  # the portable version: no install, run from any folder
 CHECKSUMS = "SHA256SUMS.txt"  # SHA-256 of both, written by desktop/build.ps1
+SIGNATURE = "SIGNATURE.txt"  # who code-signed them, written by desktop/build.ps1 when it signs
 DEFAULT_REPO = "julio208920/r6-dissect"
 
 
@@ -77,9 +78,9 @@ def release_version(tag: str) -> str:
 
 def latest_release(repo: str = GITHUB_REPO) -> dict | None:
     """The newest published release that carries the Windows app, from the GitHub API:
-    {"version", "url", "installer", "zip", "sha256"} ("zip" and the installer's
-    "sha256" may be None). None if the repo has no such release yet. Raises OSError
-    if GitHub can't be reached."""
+    {"version", "url", "installer", "zip", "sha256", "signer"} ("zip", the installer's
+    "sha256" and "signer", {"name", "thumbprint"} of its code signature, may be None). None if
+    the repo has no such release yet. Raises OSError if GitHub can't be reached."""
     with _get(f"https://api.github.com/repos/{repo}/releases?per_page=20") as response:
         releases = json.load(response)
     for release in releases:
@@ -89,7 +90,25 @@ def latest_release(repo: str = GITHUB_REPO) -> dict | None:
         if WINDOWS_INSTALLER in assets:
             return {"version": release_version(release["tag_name"]), "url": release["html_url"],
                     "installer": assets[WINDOWS_INSTALLER], "zip": assets.get(WINDOWS_ZIP),
-                    "sha256": _published_sha256(assets.get(CHECKSUMS), WINDOWS_INSTALLER)}
+                    "sha256": _published_sha256(assets.get(CHECKSUMS), WINDOWS_INSTALLER),
+                    "signer": _published_signer(assets.get(SIGNATURE))}
+    return None
+
+
+def _published_signer(signature_url: str | None) -> dict | None:
+    """{"name", "thumbprint"} of the certificate a release was signed with, from its SIGNATURE.txt
+    ("Signed by: NAME" and "Thumbprint: 40 hex digits"), if it has one."""
+    if not signature_url:
+        return None
+    try:
+        with _get(signature_url, accept="application/octet-stream") as response:
+            text = response.read(4096).decode("utf-8-sig", errors="replace")
+    except OSError:
+        return None
+    fields = dict(line.strip().partition(": ")[::2] for line in text.splitlines() if ": " in line)
+    name, thumbprint = fields.get("Signed by", "").strip(), fields.get("Thumbprint", "").strip().upper()
+    if name and re.fullmatch(r"[0-9A-F]{40}", thumbprint):
+        return {"name": name[:120], "thumbprint": thumbprint}
     return None
 
 

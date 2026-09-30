@@ -40,6 +40,11 @@ SolidCompression=yes
 ; closes a running copy before updating it
 CloseApplications=force
 RestartApplications=no
+#ifdef Sign
+; code-signed with desktop\sign.ps1: build.ps1 defines Sign and the "r6sign" tool when it has a certificate
+SignTool=r6sign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
