@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 from unittest import mock
 
@@ -115,6 +116,26 @@ class TestReportPage(unittest.TestCase):
         self.assertEqual(len(tables), 2)
         self.assertIn("Team Liquid", tables[0])
 
+
+    def test_round_by_round_shows_sides_and_operators(self):
+        at = run_app(R6_HOSTED="1")
+        at.toggle[0].set_value(True).run()
+        self.assertFalse(at.exception)
+        tables = [m.value for m in at.markdown if 'class="pl rounds"' in m.value]
+        self.assertEqual(len(tables), 2)  # the match's rounds, then the picked player's
+        overview, player = tables
+        self.assertEqual(overview.count("<tr>"), 1 + 9)  # header + 9 rounds
+        self.assertIn('class="side attack"', overview)
+        self.assertIn('class="side defense"', overview)
+        self.assertIn("Elimination", overview)
+        from sample_data import ATTACK_OPS, DEFENSE_OPS
+
+        picked = at.selectbox(key="r6_round_player").value
+        self.assertIn(ATTACK_OPS[picked], player)
+        self.assertIn(DEFENSE_OPS[picked], player)
+        self.assertIn("⚔\ufe0e", player)
+        self.assertIn("♜", player)
+        self.assertTrue(any('class="side-split"' in m.value for m in at.markdown))
 
 class TestOperatorNormalization(unittest.TestCase):
     def test_operator_data_is_preserved_per_round(self):
@@ -260,8 +281,9 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertEqual(at.selectbox[0].value, "fabian")  # you come first
         table = at.dataframe[0].value
-        rounds = compute_match_metrics(SAMPLE_MATCH)["Fabian"].rounds_played
-        self.assertEqual(dict(zip(table["Operator"], table["Rounds"])), {"Ash": 2 * rounds})
+        picked = Counter(rb.operator for rb in compute_match_metrics(SAMPLE_MATCH)["Fabian"].round_breakdown)
+        self.assertEqual(dict(zip(table["Operator"], table["Rounds"])), {op: 2 * n for op, n in picked.items()})
+        self.assertEqual(set(picked), {"Ash", "Jäger"})  # Fabian's attack and defense picks
 
     def test_operators_in_the_open_match(self):
         from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
@@ -275,8 +297,8 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertIn("newest match", at.caption[0].value)
         picks = {r["Operator"]: r["Picks"] for r in at.dataframe[0].value.to_dict("records")}
-        rounds = len(SAMPLE_MATCH["rounds"])
-        self.assertEqual(picks, {"Ash": rounds * len(TEAM0), "Jager": rounds * len(TEAM1)})
+        self.assertEqual(picks, Counter(op for rnd in SAMPLE_MATCH["rounds"] for op in rnd["operators"].values()))
+        self.assertEqual(sum(picks.values()), len(SAMPLE_MATCH["rounds"]) * len(TEAM0 + TEAM1))
         at.session_state["r6_last_match"] = SAMPLE_MATCH  # opened on the Dashboard
         at = at.run()
         self.assertFalse(any("newest match" in c.value for c in at.caption))

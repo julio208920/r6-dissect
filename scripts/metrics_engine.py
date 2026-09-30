@@ -52,10 +52,47 @@ PRO_LEAGUE_COLUMNS = (
     "Clutches", "Multikills", "Objectives", "Dead for trade kill", "Trade kills",
 )
 
+ATTACK, DEFENSE = "attack", "defense"
+# crossed swords for attackers, a chess rook (a fortified tower) for defenders.
+# U+FE0E asks for the plain text glyph, so both symbols take the page's color.
+SIDE_ICONS = {ATTACK: "⚔︎", DEFENSE: "♜"}
+SIDE_NAMES = {ATTACK: "Attack", DEFENSE: "Defense"}
+
+# r6-dissect's winCondition values (dissect/header.go), and the demo match's
+_WIN_CONDITIONS = {
+    "KilledOpponents": "Elimination", "kills": "Elimination",
+    "DefusedBomb": "Defuser detonated", "bomb_detonated": "Defuser detonated",
+    "DisabledDefuser": "Defuser disabled",
+    "Time": "Time ran out", "time": "Time ran out",
+    "SecuredArea": "Area secured", "ExtractedHostage": "Hostage extracted",
+}
+
+
+def side_label(side: str | None) -> str:
+    """"⚔ Attack" / "♜ Defense", or "" when the replay doesn't say which side a team was on."""
+    return f"{SIDE_ICONS[side]} {SIDE_NAMES[side]}" if side in SIDE_ICONS else ""
+
+
+def win_condition_label(condition: str | None) -> str:
+    """How a round was won, in words: "KilledOpponents" -> "Elimination"."""
+    if not condition or condition == "unknown":
+        return ""
+    return _WIN_CONDITIONS.get(condition, condition)
+
+
+def team_side(team: int, attack_team: int | None) -> str | None:
+    """ATTACK or DEFENSE for `team` in a round where `attack_team` attacked; None if unknown."""
+    if attack_team not in (0, 1):
+        return None
+    return ATTACK if team == attack_team else DEFENSE
+
 
 @dataclass
 class RoundBreakdown:
     round_num: int
+    side: str | None = None  # ATTACK / DEFENSE; None when the replay doesn't record it
+    operator: str | None = None
+    won: bool | None = None  # this player's team won the round; None when the replay has no winner
     kills: int = 0
     deaths: int = 0
     assists: int = 0
@@ -159,7 +196,8 @@ def _clutch_label(size: int) -> str:
     return f"1v{min(max(size, 1), 5)}"
 
 
-def _process_round(rnd: dict, team_of: dict[str, int], stats: dict[str, PlayerStats]) -> None:
+def _process_round(rnd: dict, team_of: dict[str, int], stats: dict[str, PlayerStats],
+                   only_operator: dict[str, str]) -> None:
     # Events are consumed in feed order, which is chronological (see parser.py).
     round_num = rnd["round_num"]
     winner_team = rnd.get("winner_team")
@@ -167,12 +205,19 @@ def _process_round(rnd: dict, team_of: dict[str, int], stats: dict[str, PlayerSt
     # only players present this round (leavers / late joiners in long matches);
     # the demo data has no per-round roster, so it falls back to everyone.
     present = [n for n in (rnd.get("players") or team_of) if n in team_of]
-    rb = {name: RoundBreakdown(round_num=round_num) for name in present}
+    attackers = rnd.get("attack_team")
+    operators = rnd.get("operators") or only_operator
+    rb = {
+        name: RoundBreakdown(
+            round_num=round_num, side=team_side(team_of[name], attackers), operator=operators.get(name),
+            won=team_of[name] == winner_team if winner_team in (0, 1) else None,
+        )
+        for name in present
+    }
     alive = {0: set(), 1: set()}
     for name in present:
         alive[team_of[name]].add(name)
 
-    attackers = rnd.get("attack_team")
     first_death_seen = False
     deaths = []  # (time, victim, killer) in feed order, for trade detection
     kills = []   # (time, killer, victim)
@@ -305,8 +350,11 @@ def compute_match_metrics(match: dict) -> dict[str, PlayerStats]:
     """Main entry point. Returns {player_name: PlayerStats}."""
     team_of = _team_of(match["players"])
     stats = {name: PlayerStats(name=name, team=t) for name, t in team_of.items()}
+    # a replay without each round's picks still shows who played one operator all match (as stats_db does)
+    only_operator = {p["name"]: p["operator_history"][0] for p in match["players"]
+                     if len(p.get("operator_history") or []) == 1}
     for rnd in match["rounds"]:
-        _process_round(rnd, team_of, stats)
+        _process_round(rnd, team_of, stats, only_operator)
     _compute_ratings(stats)
     return stats
 
@@ -392,6 +440,49 @@ def leaderboard_rows(stats: dict[str, PlayerStats]) -> list[dict]:
         "Trade kills": s.trade_kills,
     } for s in stats.values()]
     rows.sort(key=lambda r: r["EPS"], reverse=True)
+    return rows
+
+
+def side_split(breakdown: list[RoundBreakdown]) -> dict[str, dict[str, int]]:
+    """A player's rounds split by side, attack first:
+    {"attack": {"rounds", "won", "kills", "deaths"}, "defense": {...}}.
+    Rounds where the replay doesn't record the side are left out."""
+    split: dict[str, dict[str, int]] = {}
+    for rb in breakdown:
+        if rb.side in SIDE_ICONS:
+            s = split.setdefault(rb.side, {"rounds": 0, "won": 0, "kills": 0, "deaths": 0})
+            s["rounds"] += 1
+            s["won"] += bool(rb.won)
+            s["kills"] += rb.kills
+            s["deaths"] += rb.deaths
+    return {side: split[side] for side in (ATTACK, DEFENSE) if side in split}
+
+
+def round_rows(match: dict, stats: dict[str, PlayerStats]) -> list[dict]:
+    """One row per round, numbered from 1 in play order (for the JSON export): which
+    team attacked and defended, who won and how, the site, and each player's side,
+    operator and result that round."""
+    names = match["team_names"]
+    played: dict[int, list] = {}
+    for s in sorted(stats.values(), key=lambda s: (s.team, s.name.lower())):
+        for rb in s.round_breakdown:
+            played.setdefault(rb.round_num, []).append((s, rb))
+    rows = []
+    for number, rnd in enumerate(match["rounds"], 1):
+        attackers, winner = rnd.get("attack_team"), rnd.get("winner_team")
+        rows.append({
+            "round": number,
+            "site": rnd.get("site") or "",
+            "attack": names[attackers] if attackers in (0, 1) else None,
+            "defense": names[1 - attackers] if attackers in (0, 1) else None,
+            "winner": names[winner] if winner in (0, 1) else None,
+            "win_condition": win_condition_label(rnd.get("win_condition")),
+            "players": [{
+                "player": s.name, "team": names[s.team], "side": rb.side, "operator": rb.operator,
+                "won": rb.won, "kills": rb.kills, "deaths": rb.deaths, "assists": rb.assists,
+                "survived": rb.survived,
+            } for s, rb in played.get(rnd["round_num"], [])],
+        })
     return rows
 
 

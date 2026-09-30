@@ -15,20 +15,24 @@ metrics_engine.py has at least one non-zero example to validate against.
 TEAM0 = ["Fabian", "Kanto", "Sens", "Sacri", "BC"]
 TEAM1 = ["Bosco", "HotShot", "Otter", "Solotov", "Nyx"]
 
-PLAYERS = (
-    [{"name": n, "team": 0, "operator_history": ["Ash"]} for n in TEAM0]
-    + [{"name": n, "team": 1, "operator_history": ["Jager"]} for n in TEAM1]
-)
+# each player's operator on attack and on defense
+ATTACK_OPS = dict(zip(TEAM0 + TEAM1, ["Ash", "Thermite", "Thatcher", "Sledge", "Hibana",
+                                      "Zofia", "Ace", "Iana", "Nomad", "Twitch"]))
+DEFENSE_OPS = dict(zip(TEAM0 + TEAM1, ["Jäger", "Kaid", "Mute", "Valkyrie", "Bandit",
+                                       "Smoke", "Mira", "Echo", "Lesion", "Wamai"]))
 
 
-def _round(round_num, winner_team, win_condition, site, events, dead_by_end):
+def _round(round_num, winner_team, win_condition, site, events, dead_by_end, attack_team):
     """dead_by_end: list of player names eliminated at some point this round
     (used only for readability here; the engine derives state from events)."""
+    attackers = TEAM0 if attack_team == 0 else TEAM1
     return {
         "round_num": round_num,
         "winner_team": winner_team,
         "win_condition": win_condition,
+        "attack_team": attack_team,
         "site": site,
+        "operators": {n: (ATTACK_OPS if n in attackers else DEFENSE_OPS)[n] for n in TEAM0 + TEAM1},
         "events": events,
         "alive_start": {"team0": TEAM0, "team1": TEAM1},
     }
@@ -68,7 +72,7 @@ ev += kd(70.0, "Sacri", "Otter")
 ev += kd(72.0, "Nyx", "Sacri")                            # trade window test
 ev += kd(90.0, "Fabian", "Solotov")
 ev += kd(95.0, "Fabian", "Nyx")                            # 3k round for Fabian
-ROUNDS.append(_round(1, 0, "kills", "Kids/Rooms", ev, []))
+ROUNDS.append(_round(1, 0, "kills", "Kids/Rooms", ev, [], attack_team=0))
 
 # Round 2: Spacestation attacks, entry by HotShot, defuses fail, kills win
 ev = []
@@ -78,7 +82,7 @@ ev += kd(44.0, "Nyx", "Kanto")
 ev += kd(60.0, "Bosco", "Sacri")
 ev += kd(65.0, "BC", "Bosco")                              # trade
 ev += kd(80.0, "Solotov", "BC")
-ROUNDS.append(_round(2, 1, "kills", "CCTV/Archives", ev, []))
+ROUNDS.append(_round(2, 1, "kills", "CCTV/Archives", ev, [], attack_team=1))
 
 # Round 3: Liquid attacks, plant + defuse fails, Liquid wins on plant
 ev = []
@@ -90,7 +94,7 @@ ev += kd(75.0, "Sens", "Otter")
 ev += kd(85.0, "HotShot", "Sens")
 ev += kd(95.0, "Sacri", "HotShot")
 ev += kd(96.0, "BC", "Bosco")
-ROUNDS.append(_round(3, 0, "bomb_detonated", "Kids/Rooms", ev, []))
+ROUNDS.append(_round(3, 0, "bomb_detonated", "Kids/Rooms", ev, [], attack_team=0))
 
 # Round 4: Spacestation defends and wins on time (no full wipe), Fabian entry death
 ev = []
@@ -104,7 +108,7 @@ ev += kd(100.0, "Bosco", "Sacri")
 ev += kd(101.0, "BC", "Bosco")
 # BC is now the lone survivor for team0 vs Otter -> BC clutches a 1v1
 ev += kd(115.0, "BC", "Otter")
-ROUNDS.append(_round(4, 0, "kills", "CCTV/Archives", ev, []))
+ROUNDS.append(_round(4, 0, "kills", "CCTV/Archives", ev, [], attack_team=0))
 
 # Round 5: Spacestation attacks, wins on plant, Sacri multi-kill (2k)
 ev = []
@@ -116,7 +120,7 @@ ev += kd(58.0, "Bosco", "Fabian")
 ev += kd(59.0, "BC", "Bosco")
 ev.append(P(70.0, "Nyx"))
 ev += kd(85.0, "Nyx", "BC")
-ROUNDS.append(_round(5, 1, "bomb_detonated", "Kids/Rooms", ev, []))
+ROUNDS.append(_round(5, 1, "bomb_detonated", "Kids/Rooms", ev, [], attack_team=1))
 
 # Round 6: Liquid attacks, Fabian clutches a 1v2
 ev = []
@@ -131,7 +135,7 @@ ev.append(P(75.0, "Fabian"))
 ev += kd(90.0, "Fabian", "Otter")
 ev += kd(100.0, "Fabian", "Solotov")
 ev += kd(108.0, "Fabian", "Nyx")
-ROUNDS.append(_round(6, 0, "bomb_detonated", "CCTV/Archives", ev, []))
+ROUNDS.append(_round(6, 0, "bomb_detonated", "CCTV/Archives", ev, [], attack_team=0))
 
 # Round 7: Spacestation defends, wins on time; BC entry death, no trade
 ev = []
@@ -140,7 +144,7 @@ ev += kd(24.0, "HotShot", "Sens")
 ev += kd(38.0, "Bosco", "Sacri")
 ev += kd(52.0, "Nyx", "Fabian")
 ev += kd(66.0, "Solotov", "Kanto")
-ROUNDS.append(_round(7, 1, "time", "Kids/Rooms", ev, []))
+ROUNDS.append(_round(7, 1, "time", "Kids/Rooms", ev, [], attack_team=0))
 
 # Round 8: Liquid attacks, wins on plant, Kanto entry kill
 ev = []
@@ -152,7 +156,7 @@ ev.append(P(50.0, "BC"))
 ev += kd(66.0, "HotShot", "BC")
 ev += kd(80.0, "Kanto", "HotShot")
 ev += kd(90.0, "Kanto", "Bosco")
-ROUNDS.append(_round(8, 0, "bomb_detonated", "CCTV/Archives", ev, []))
+ROUNDS.append(_round(8, 0, "bomb_detonated", "CCTV/Archives", ev, [], attack_team=0))
 
 # Round 9: Spacestation attacks, Liquid wins on kills (match point, 5-4)
 ev = []
@@ -163,8 +167,13 @@ ev += kd(48.0, "Nyx", "Sens")
 ev += kd(60.0, "Solotov", "Kanto")
 ev += kd(61.0, "Sacri", "Solotov")
 ev += kd(70.0, "Sacri", "Nyx")
-ROUNDS.append(_round(9, 0, "kills", "Kids/Rooms", ev, []))
+ROUNDS.append(_round(9, 0, "kills", "Kids/Rooms", ev, [], attack_team=1))
 
+
+PLAYERS = [
+    {"name": n, "team": 0 if n in TEAM0 else 1, "operator_history": [r["operators"][n] for r in ROUNDS]}
+    for n in TEAM0 + TEAM1
+]
 
 SAMPLE_MATCH = {
     "map": "Bank",
