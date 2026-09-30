@@ -145,6 +145,13 @@ class TestDocking(unittest.TestCase):
         with self.assertRaises(ValueError):
             launcher.send_window_command("explode")
 
+    def test_commands_sent_at_the_same_time_are_all_kept_in_order(self):
+        # Windows' clock often gives two quick calls the same time: neither command may be lost
+        with mock.patch("time.time_ns", return_value=1_790_805_194_325_678_000):
+            for edge in ("left", "right", "left"):
+                launcher.send_window_command("dock", edge=edge)
+        self.assertEqual([c["edge"] for c in launcher.take_window_commands()], ["left", "right", "left"])
+
     def docking(self):
         window = mock.Mock()
         docking = launcher.Docking(window)
