@@ -216,7 +216,8 @@ class PlayerSeasonStats:
 
     @property
     def eps(self) -> int | None:
-        return None if self.rating is None else round(100 * self.rating)
+        # metrics_engine.round_eps's rule, here so this module needs nothing else to load
+        return None if self.rating is None else round(round(100 * self.rating, 6))
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -544,7 +545,8 @@ class StatsManager:
             entry_diff=totals["entry_kills"] - totals["entry_deaths"],
             clutch_success_rate=won / attempted if attempted else None,
             kost_avg=sum(p.kost_pct for p in played) / len(played) if played else 0.0,
-            eps=round(100 * sum(p.rating * p.rated_rounds for p in rated) / rated_rounds) if rated_rounds else None,
+            eps=round(round(100 * sum(p.rating * p.rated_rounds for p in rated) / rated_rounds, 6))
+            if rated_rounds else None,
             member_stats=members,
         )
 

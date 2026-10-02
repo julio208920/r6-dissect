@@ -82,6 +82,18 @@ def win_condition_label(condition: str | None) -> str:
     return _WIN_CONDITIONS.get(condition, condition)
 
 
+def round_eps(eps: float) -> int:
+    """An EPS as shown everywhere: the nearest whole number, halves to even (112.5 -> 112,
+    103.5 -> 104), once floating-point noise is gone. 100 × 1.035 comes out as 103.49999999999999,
+    and the stats database's average of that rating as exactly 103.5: both show 104."""
+    return round(round(eps, 6))
+
+
+def eps_from_rating(rating: float) -> int:
+    """EPS is 100 × the rating (1.00 is the match's average player)."""
+    return round_eps(100 * rating)
+
+
 def team_side(team: int, attack_team: int | None) -> str | None:
     """ATTACK or DEFENSE for `team` in a round where `attack_team` attacked; None if unknown."""
     if attack_team not in (0, 1):
@@ -211,7 +223,7 @@ class PlayerStats:
 
     @property
     def eps(self) -> int:
-        return round(100 * self.rating)
+        return eps_from_rating(self.rating)
 
 
 def _team_of(players: list[dict]) -> dict[str, int]:

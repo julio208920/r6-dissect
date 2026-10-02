@@ -285,7 +285,7 @@ class TestAnalyticsPages(unittest.TestCase):
         table = at.dataframe[1].value
         self.assertEqual(sorted(table["Player"]), sorted(players))
         self.assertEqual(set(table["Matches"]), {2})
-        eps = {p: round(100 * s.rating) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        eps = {p: s.eps for p, s in compute_match_metrics(SAMPLE_MATCH).items()}  # as the scoreboard shows it
         self.assertEqual(dict(zip(table["Player"], table["All-time EPS"])), {p: str(eps[p]) for p in players})
         self.assertIn("Nobody", at.warning[0].value)
         self.assertEqual(at.selectbox(key="team_choice").value, "Liquid")  # saved, and Ask knows it now
@@ -358,7 +358,7 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
         roster = at.dataframe[1].value
-        eps = {p: str(round(100 * s.rating)) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        eps = {p: str(s.eps) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}  # as the scoreboard shows it
         self.assertEqual(dict(zip(roster["Player"], roster["EPS"])), {p: eps[p] for p in TEAM0})  # not "—"
         self.assertEqual(dict(zip(roster["Player"], roster["All-time EPS"])), {p: eps[p] for p in TEAM0})
         teams = at.dataframe[2].value
@@ -393,6 +393,51 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertEqual(rounds, {p: 2 * len(SAMPLE_MATCH["rounds"]) for p in TEAM0})  # two matches' worth
         self.assertEqual([at.checkbox(key=f"in_season_current_{i}").value for i in ids], [True, False, True])
         self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+
+    def test_each_season_team_counts_only_its_own_matches(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import TEAM0, TEAM1
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        source = at.session_state["source"]
+        (name, (first, raw, warnings)), (_, (second, _, _)) = source["parsed"].items()
+        first["rounds"] = first["rounds"][:-3]  # a different match, so its EPS differs too
+        source["parsed"][name] = (first, raw, warnings)
+        at.session_state["source"] = source
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+            tracker.log_match(first)  # only Squad was tracked then
+            tracker.add_players(TEAM1, team="Rivals")
+            tracker.log_match(second)  # both teams count this one
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        teams = next(d.value for d in at.dataframe if "Team" in d.value.columns)  # All season teams
+        self.assertEqual(dict(zip(teams["Team"], teams["Maps"])), {"Rivals": 1, "Squad": 2})
+        # a Rivals player's season EPS is from the one match counted for Rivals, like their other numbers
+        at = next(s for s in at.selectbox if s.label == "Season team").set_value("Rivals").run()
+        roster = next(d.value for d in at.dataframe if "K / D / A" in d.value.columns)
+        eps = {p: str(s.eps) for p, s in compute_match_metrics(second).items()}  # as the scoreboard shows it
+        self.assertEqual(dict(zip(roster["Player"], roster["EPS"])), {p: eps[p] for p in TEAM1})
+
+    def test_a_counted_match_shows_whatever_the_filter(self):
+        from sample_data import TEAM0, TEAM1
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        counted, other = [m for m, _raw, _warnings in at.session_state["source"]["parsed"].values()]
+        squad = TEAM0[:3] + TEAM1[:2]  # at most 3 of them on one side in any match
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(squad, team="Squad")
+            tracker.log_match(counted)
+        at.switch_page("teams.py").run()
+        at = at.slider(key="season_need_current_Squad").set_value(5).run()  # more than ever played together
+        box = at.checkbox(key=f"in_season_current_{counted['match_id']}")
+        self.assertTrue(box.value)
+        self.assertIn("3 of the team", box.label)  # listed as itself, not as missing from the database
+        self.assertNotIn("not in your stats database", box.label)
+        keys = [c.key for c in at.checkbox if str(c.key).startswith("in_season_current_")]
+        self.assertEqual(keys, [f"in_season_current_{counted['match_id']}"])  # the uncounted one is filtered out
 
     def test_a_match_whose_replay_is_gone_cant_be_added(self):
         from sample_data import TEAM0

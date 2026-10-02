@@ -11,7 +11,7 @@ import streamlit as st
 
 from app_info import is_public_host
 from ask_engine import eps_by_player, rate, team_report, team_summary
-from metrics_engine import pro_league_row, rows_csv
+from metrics_engine import pro_league_row, round_eps, rows_csv
 from season_stats import StatsError, StatsManager
 from sources import current_source, match_label, open_stats_db, parse, sync_with_progress
 from stats_db import nice_time
@@ -104,13 +104,16 @@ def _season_matches(season: str, team: str, players: list[str], counted: set[str
                      expanded=not counted):
         st.caption("Tick the matches that count toward this season, like your Game Day matches, and untick "
                    "practice. Only ticked matches go into this season's stats. Adding a match needs its replay "
-                   "on this PC; taking one out doesn't.")
+                   "on this PC; taking one out doesn't. A match is in the season or not, so one between two of "
+                   "your tracked teams counts for both.")
         need = st.slider("Show matches with at least this many of the team on one side", 1, max(1, len(players)),
                          min(3, max(1, len(players))), key=f"season_need_{season}_{team}")
         with open_stats_db() as db:
-            rows = db.team_matches(players, need)
+            every = db.team_matches(players)
+        # a counted match always shows, even with fewer of the team than asked for
+        rows = [r for r in every if r["n"] >= need or r["match_id"] in counted]
         listed = {r["match_id"] for r in rows}
-        gone = sorted(counted - listed)  # counted, but not in the stats database (replay gone) or too few shown
+        gone = sorted(counted - {r["match_id"] for r in every})  # counted, but not in the stats database
         if not rows and not gone:
             st.info("No matches with that many of the team yet. Open their replays on **Dashboard**, or lower the "
                     "number above.")
@@ -212,7 +215,7 @@ with build_tab:
                 table = []
                 for r in sorted(report["players"], key=lambda r: -(r["eps"] or 0)):
                     row = pro_league_row(
-                        team=0, player=r["name"], eps=round(r["eps"] or 0), kills=r["kills"], deaths=r["deaths"],
+                        team=0, player=r["name"], eps=round_eps(r["eps"] or 0), kills=r["kills"], deaths=r["deaths"],
                         entry_kills=r["entry_kills"], entry_deaths=r["entry_deaths"], kost_pct=r["kost"] or 0,
                         kpr=r["kpr"] or 0, hs_pct=r["hs"] or 0, srv_pct=r["survival"] or 0, clutches=r["clutches"],
                         multikills=r["multikills"], objectives=r["objectives"], traded=r["traded"],
@@ -272,10 +275,13 @@ with season_tab:
         season_ids = [m["match_id"] for m in saved]
         # team stats and EPS are worked out again from the stats database, over the season's matches
         with open_stats_db() as db:
-            summaries = {name: team_summary(db, t.players, 1, season_ids) for name, t in season_teams.items()}
-            everyone = [p for t in season_teams.values() for p in t.players]
-            season_eps = eps_by_player(db, everyone, season_ids)
-            career = eps_by_player(db, everyone)
+            # each team over the matches counted for it, not every match in the season
+            summaries = {name: team_summary(db, t.players, 1, sorted(counted_by[name]))
+                         for name, t in season_teams.items()}
+            season_eps = {}  # like the rest of a player's season numbers, from their team's counted matches
+            for name, t in season_teams.items():
+                season_eps.update(eps_by_player(db, t.players, sorted(counted_by[name])))
+            career = eps_by_player(db, [p for t in season_teams.values() for p in t.players])
             in_db = db.query(f"SELECT COUNT(*) AS n FROM matches WHERE match_id IN ({', '.join('?' * len(season_ids))})",
                              season_ids)[0]["n"] if season_ids else 0
         team = season_teams.get(selected)

@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 
 from ask_engine import Vocab, ask, interpret, suggestions, team_report
-from metrics_engine import compute_match_metrics
+from metrics_engine import compute_match_metrics, round_eps
 from stats_db import StatsDB, nice_day, nice_time
 
 NOW = datetime(2026, 9, 26, 12, 0)  # a Saturday
@@ -80,7 +80,7 @@ class Totals:
 
     @property
     def eps(self) -> int:  # EPS over several matches: the rounds-weighted average of each match's
-        return round(100 * self.weighted_rating / self.rounds)
+        return round_eps(100 * self.weighted_rating / self.rounds)
 
 
 def truth(players=None, matches=None):

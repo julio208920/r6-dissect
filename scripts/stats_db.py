@@ -158,7 +158,7 @@ _INSERT_ROUND = _insert("round_players", "match_id round player_key player team 
 _INSERT_TEAM_ROUND = _insert("team_rounds", "match_id round team side won planted man_down back_to_even")
 DATA_VERSION = 2  # 2: team_rounds. Matches read by an earlier version are read again, if their replays remain
 # how a round ends once the defuser is down, even when the kill feed missed the plant itself
-_PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser"}
+_PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser", "bomb_detonated"}  # the last: the demo match's name
 _MATCH_FOLDER_TIME = re.compile(r"Match-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})")
 
 

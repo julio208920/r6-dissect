@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from metrics_engine import rows_csv
+from metrics_engine import eps_from_rating, round_eps, rows_csv
 from sources import current_source, open_stats_db, sync_with_progress
 from stats_db import nice_time
 from ui import md
@@ -31,7 +31,7 @@ if mine:
     columns[0].metric("Matches", len(mine))
     columns[1].metric("Record", f"{wins}–{losses}", help="Wins–losses, from your team's side")
     columns[2].metric("K/D", f"{kills / deaths if deaths else kills:.2f}")
-    eps = round(100 * sum(r["rating"] * r["player_rounds"] for r in mine) / rounds) if rounds else "—"
+    eps = round_eps(100 * sum(r["rating"] * r["player_rounds"] for r in mine) / rounds) if rounds else "—"
     columns[3].metric("EPS", eps, help="Your average EPS, weighted by rounds played")
     st.caption(f"Your matches as **{md(me)}**, newest first. Select one to open it on the Dashboard.")
 
@@ -41,7 +41,7 @@ for r in rows:
     if r["player"]:
         own, other = (r["score0"], r["score1"]) if r["team"] == 0 else (r["score1"], r["score0"])
         row |= {"Result": {1: "Win", 0: "Loss"}.get(r["won"], "Draw"), "Score": f"{own}–{other}",
-                "K-D": f"{r['kills']}-{r['deaths']}", "EPS": round(100 * r["rating"])}
+                "K-D": f"{r['kills']}-{r['deaths']}", "EPS": eps_from_rating(r["rating"])}
     else:
         row |= {"Result": "—", "Score": f"{r['score0']}–{r['score1']}", "K-D": "", "EPS": None}
     table.append(row)

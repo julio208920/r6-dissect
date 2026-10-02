@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 import parser as replay_parser
-from metrics_engine import compute_match_metrics
+from metrics_engine import compute_match_metrics, round_eps
 from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
 from season_stats import COUNTER_FIELDS, RoundResult, StatsError, StatsManager
 
@@ -122,7 +122,7 @@ class StatsManagerTest(unittest.TestCase):
         stats = compute_match_metrics(self.match)
         self.assertEqual(self.sm.get_player_stats("fabian").eps, stats["Fabian"].eps)  # any case
         rounds = sum(stats[n].rounds_played for n in TEAM0)
-        want = round(100 * sum(stats[n].rating * stats[n].rounds_played for n in TEAM0) / rounds)
+        want = round_eps(100 * sum(stats[n].rating * stats[n].rounds_played for n in TEAM0) / rounds)
         self.assertEqual(self.sm.get_team_stats(LIQUID).eps, want)
         self.sm.log_match(copy.deepcopy(self.match))  # the same match again changes nothing
         self.assertEqual(self.sm.get_player_stats("Fabian").rated_rounds, stats["Fabian"].rounds_played)
