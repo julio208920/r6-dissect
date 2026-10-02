@@ -4,16 +4,31 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release's tag to build the binaries for, e.g. v1.4.1"
+        required: true
+      upload:
+        description: "Upload them to that release (untick to only check that they build)"
+        type: boolean
+        default: true
+
+# uploading to a release needs write access: the repository's default token can only read
+permissions:
+  contents: write
 
 jobs:
   releases-matrix:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false  # one platform failing shouldn't cancel the others
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
       - shell: bash
         name: Set env variables
         run: |
@@ -25,6 +40,9 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           goversion: "1.23.3"
+          release_tag: ${{ github.event.release.tag_name || inputs.tag }}
+          upload: ${{ github.event_name == 'release' || inputs.upload }}
+          overwrite: true  # a re-run replaces the release's binaries instead of failing on them
           pre_command: "go build -o libr6dissect.${{ env.ext }} -buildmode=c-shared exports/exports.go"
           extra_files: "LICENSE README.md libr6dissect.h libr6dissect.${{ env.ext }}"
           ldflags: "-X 'main.Version=${{ env.version }}'"
