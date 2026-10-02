@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 import parser as replay_parser
-from metrics_engine import compute_match_metrics
+from metrics_engine import compute_match_metrics, round_eps
 from sample_data import SAMPLE_MATCH, TEAM0, TEAM1
 from season_stats import COUNTER_FIELDS, RoundResult, StatsError, StatsManager
 
@@ -122,7 +122,7 @@ class StatsManagerTest(unittest.TestCase):
         stats = compute_match_metrics(self.match)
         self.assertEqual(self.sm.get_player_stats("fabian").eps, stats["Fabian"].eps)  # any case
         rounds = sum(stats[n].rounds_played for n in TEAM0)
-        want = round(100 * sum(stats[n].rating * stats[n].rounds_played for n in TEAM0) / rounds)
+        want = round_eps(100 * sum(stats[n].rating * stats[n].rounds_played for n in TEAM0) / rounds)
         self.assertEqual(self.sm.get_team_stats(LIQUID).eps, want)
         self.sm.log_match(copy.deepcopy(self.match))  # the same match again changes nothing
         self.assertEqual(self.sm.get_player_stats("Fabian").rated_rounds, stats["Fabian"].rounds_played)
@@ -168,6 +168,32 @@ class StatsManagerTest(unittest.TestCase):
         before = self.sm.export_json()["players"]
         self.sm.rebuild_totals()
         self.assertEqual(self.sm.export_json()["players"], before)
+
+    def test_a_match_taken_out_of_the_season_is_as_if_never_saved(self):
+        practice = copy.deepcopy(self.match)
+        practice["match_id"] = "practice"
+        self.sm.add_players(TEAM0, team="Liquid")
+        self.sm.log_match(self.match)  # Game Day
+        self.sm.log_match(practice)
+        self.assertEqual(self.sm.remove_match("practice"), len(TEAM0) * len(self.match["rounds"]))
+        only_game_day = StatsManager(":memory:", season="Y10S3")
+        self.addCleanup(only_game_day.close)
+        only_game_day.add_players(TEAM0, team="Liquid")
+        only_game_day.log_match(self.match)
+        self.assertEqual({p.username: (p.totals, p.rating) for p in self.sm.all_player_stats()},
+                         {p.username: (p.totals, p.rating) for p in only_game_day.all_player_stats()})
+        self.assertEqual([m["match_id"] for m in self.sm.match_history()], [self.match["match_id"]])
+        self.assertEqual(self.sm.remove_match("not saved"), 0)
+
+    def test_tracked_teams_and_their_matches(self):
+        self.sm.add_players(TEAM0[:2], team="Liquid")
+        self.sm.add_players(["Bosco"], team="SSG")
+        self.sm.add_player("Nyx")  # no team pinned
+        self.assertEqual(self.sm.tracked_teams(), {"Liquid": TEAM0[:2], "SSG": ["Bosco"]})  # before any match
+        self.sm.log_match(self.match)
+        self.assertEqual(len(self.sm.match_history(["fabian"])), 1)  # any case
+        self.assertEqual(self.sm.match_history(["Nobody"]), [])
+        self.assertEqual(self.sm.match_history([]), [])
 
     def test_reset_season_only_affects_that_season(self):
         self.sm.add_player("Fabian")

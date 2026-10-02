@@ -18,8 +18,8 @@ import file_guard
 import parser as replay_parser
 from metrics_engine import (
     ATTACK, DEFENSE, PRO_LEAGUE_COLUMNS, RoundBreakdown, compute_match_metrics, leaderboard_rows, pro_league_rows,
-    round_player_rows, round_rows, rounds_text, rows_csv, running_scores, side_label, side_split,
-    win_condition_label,
+    eps_from_rating, round_eps, round_player_rows, round_rows, rounds_text, rows_csv, running_scores, side_label,
+    side_split, win_condition_label,
 )
 from parser import (
     ReplayParseError, _stage_match_folder, collect_rec_files, group_by_match, normalize_from_r6_dissect, save_uploads,
@@ -344,6 +344,18 @@ class TestReplayFiles(unittest.TestCase):
             fake.write_bytes(b"#!/bin/sh" + bytes(2000))  # a script renamed to .rec
             with self.assertRaisesRegex(ReplayParseError, "isn't a Siege replay"):
                 collect_rec_files(fake, Path(td) / "out")
+
+
+class TestEPSRounding(unittest.TestCase):
+    def test_every_page_rounds_eps_the_same_way(self):
+        # a 1.035 rating is an EPS of 103.5: the scoreboard's 100 × 1.035 (103.49999999999999) and the
+        # stats database's average of it over 9 rounds (103.5) both show 104
+        self.assertEqual(100 * 1.035, 103.49999999999999)
+        self.assertEqual(eps_from_rating(1.035), 104)
+        self.assertEqual(round_eps(100.0 * (1.035 * 9) / 9), 104)
+        self.assertEqual(round_eps(112.5), 112)  # halves to even, as it always was
+        self.assertEqual(round_eps(103.4999), 103)
+        self.assertEqual(eps_from_rating(1.0), 100)
 
 
 class TestOperatorNames(unittest.TestCase):

@@ -15,7 +15,7 @@ from datetime import datetime
 import streamlit as st
 
 from app_info import can_dock, send_window_command
-from metrics_engine import SIDE_ICONS, SIDE_NAMES
+from metrics_engine import SIDE_ICONS, SIDE_NAMES, eps_from_rating
 from sources import current_source, open_stats_db, sync_stats_db
 from stats_db import nice_time
 
@@ -115,7 +115,7 @@ def latest_match_html(db, me: str | None, row: dict) -> str:
         kost = f"{100 * stats['kost_rounds'] / stats['rounds']:.0f}%" if stats["rounds"] else "—"
         out.append('<div class="dk-stats">'
                    f'<div class="dk-stat"><b>{stats["kills"]}-{stats["deaths"]}-{stats["assists"]}</b><span>K-D-A</span></div>'
-                   f'<div class="dk-stat"><b>{round(100 * stats["rating"])}</b><span>EPS</span></div>'
+                   f'<div class="dk-stat"><b>{eps_from_rating(stats["rating"])}</b><span>EPS</span></div>'
                    f'<div class="dk-stat"><b>{kost}</b><span>KOST</span></div></div>')
         ops = db.query("SELECT operator, side, COUNT(*) AS n FROM round_players WHERE match_id = ? AND player_key = ? "
                        "AND operator IS NOT NULL GROUP BY operator, side ORDER BY n DESC, operator",

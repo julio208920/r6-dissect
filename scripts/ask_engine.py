@@ -39,6 +39,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
+from metrics_engine import round_eps
 from stats_db import StatsDB, nice_day, nice_time
 
 # ------------------------------------------------------------------ metrics --
@@ -1008,8 +1009,8 @@ def fmt(value: Any, kind: str) -> str:
     if kind == "pct":
         return f"{value:.0f}%"
     if kind == "signed":
-        return f"{int(round(value)):+d}"
-    return f"{int(round(value))}"
+        return f"{round_eps(value):+d}"
+    return f"{round_eps(value)}"
 
 
 def _value(value: Any, kind: str) -> Any:
@@ -1020,7 +1021,7 @@ def _value(value: Any, kind: str) -> Any:
         return round(value, 2)
     if kind == "pct":
         return round(value, 1)
-    return int(round(value))
+    return round_eps(value)  # whole numbers, the way the scoreboard rounds EPS
 
 
 def _plural(n: int, word: str) -> str:

@@ -285,7 +285,7 @@ class TestAnalyticsPages(unittest.TestCase):
         table = at.dataframe[1].value
         self.assertEqual(sorted(table["Player"]), sorted(players))
         self.assertEqual(set(table["Matches"]), {2})
-        eps = {p: round(100 * s.rating) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        eps = {p: s.eps for p, s in compute_match_metrics(SAMPLE_MATCH).items()}  # as the scoreboard shows it
         self.assertEqual(dict(zip(table["Player"], table["All-time EPS"])), {p: str(eps[p]) for p in players})
         self.assertIn("Nobody", at.warning[0].value)
         self.assertEqual(at.selectbox(key="team_choice").value, "Liquid")  # saved, and Ask knows it now
@@ -358,12 +358,121 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
         roster = at.dataframe[1].value
-        eps = {p: str(round(100 * s.rating)) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}
+        eps = {p: str(s.eps) for p, s in compute_match_metrics(SAMPLE_MATCH).items()}  # as the scoreboard shows it
         self.assertEqual(dict(zip(roster["Player"], roster["EPS"])), {p: eps[p] for p in TEAM0})  # not "—"
         self.assertEqual(dict(zip(roster["Player"], roster["All-time EPS"])), {p: eps[p] for p in TEAM0})
         teams = at.dataframe[2].value
         self.assertIn("Back to even %", teams.columns)
         self.assertNotIn("K/D", teams.columns)
+
+    def test_pick_the_matches_that_count_for_the_season(self):
+        from sample_data import SAMPLE_MATCH, TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app(), count=3)
+        parsed = at.session_state["source"]["parsed"]
+        ids = [match["match_id"] for match, _raw, _warnings in parsed.values()]
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+            for match, _raw, _warnings in list(parsed.values())[:2]:  # two Game Day matches saved
+                tracker.log_match(match)
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        boxes = {i: at.checkbox(key=f"in_season_current_{i}") for i in ids}
+        self.assertEqual([boxes[i].value for i in ids], [True, True, False])
+        self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+        # the second was practice after all, and the third was Game Day
+        boxes[ids[1]].uncheck()
+        boxes[ids[2]].check()
+        at = next(b for b in at.button if b.label == "Save season matches").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.success[0].value, "Season matches saved: added 1 and took out 1.")
+        with StatsManager(season="current") as tracker:
+            self.assertEqual({m["match_id"] for m in tracker.match_history()}, {ids[0], ids[2]})
+            rounds = {p.username: p.totals["rounds_played"] for p in tracker.all_player_stats()}
+        self.assertEqual(rounds, {p: 2 * len(SAMPLE_MATCH["rounds"]) for p in TEAM0})  # two matches' worth
+        self.assertEqual([at.checkbox(key=f"in_season_current_{i}").value for i in ids], [True, False, True])
+        self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+
+    def test_each_season_team_counts_only_its_own_matches(self):
+        from metrics_engine import compute_match_metrics
+        from sample_data import TEAM0, TEAM1
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        source = at.session_state["source"]
+        (name, (first, raw, warnings)), (_, (second, _, _)) = source["parsed"].items()
+        first["rounds"] = first["rounds"][:-3]  # a different match, so its EPS differs too
+        source["parsed"][name] = (first, raw, warnings)
+        at.session_state["source"] = source
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+            tracker.log_match(first)  # only Squad was tracked then
+            tracker.add_players(TEAM1, team="Rivals")
+            tracker.log_match(second)  # both teams count this one
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        teams = next(d.value for d in at.dataframe if "Team" in d.value.columns)  # All season teams
+        self.assertEqual(dict(zip(teams["Team"], teams["Maps"])), {"Rivals": 1, "Squad": 2})
+        # a Rivals player's season EPS is from the one match counted for Rivals, like their other numbers
+        at = next(s for s in at.selectbox if s.label == "Season team").set_value("Rivals").run()
+        roster = next(d.value for d in at.dataframe if "K / D / A" in d.value.columns)
+        eps = {p: str(s.eps) for p, s in compute_match_metrics(second).items()}  # as the scoreboard shows it
+        self.assertEqual(dict(zip(roster["Player"], roster["EPS"])), {p: eps[p] for p in TEAM1})
+
+    def test_a_counted_match_shows_whatever_the_filter(self):
+        from sample_data import TEAM0, TEAM1
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        counted, other = [m for m, _raw, _warnings in at.session_state["source"]["parsed"].values()]
+        squad = TEAM0[:3] + TEAM1[:2]  # at most 3 of them on one side in any match
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(squad, team="Squad")
+            tracker.log_match(counted)
+        at.switch_page("teams.py").run()
+        at = at.slider(key="season_need_current_Squad").set_value(5).run()  # more than ever played together
+        box = at.checkbox(key=f"in_season_current_{counted['match_id']}")
+        self.assertTrue(box.value)
+        self.assertIn("3 of the team", box.label)  # listed as itself, not as missing from the database
+        self.assertNotIn("not in your stats database", box.label)
+        keys = [c.key for c in at.checkbox if str(c.key).startswith("in_season_current_")]
+        self.assertEqual(keys, [f"in_season_current_{counted['match_id']}"])  # the uncounted one is filtered out
+
+    def test_a_match_whose_replay_is_gone_cant_be_added(self):
+        from sample_data import TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+        at.switch_page("teams.py").run()  # both matches are in the stats database now
+        names = list(at.session_state["source"]["groups"])
+        ids = [match["match_id"] for match, _raw, _warnings in at.session_state["source"]["parsed"].values()]
+        source = at.session_state["source"]
+        del source["groups"][names[1]], source["parsed"][names[1]]  # the game deleted the second replay
+        at.session_state["source"] = source
+        for i in ids:
+            at.checkbox(key=f"in_season_current_{i}").check()
+        at = next(b for b in at.button if b.label == "Save season matches").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.success[0].value, "Season matches saved: added 1.")
+        self.assertIn("aren't on this PC anymore", at.warning[0].value)
+        with StatsManager(season="current") as tracker:
+            self.assertEqual([m["match_id"] for m in tracker.match_history()], [ids[0]])
+
+    def test_a_tracked_team_without_matches_can_pick_them(self):
+        from sample_data import TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")  # tracked, nothing saved yet
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual(next(s for s in at.selectbox if s.label == "Season team").value, "Squad")
+        self.assertTrue(any("No matches count for Squad" in i.value for i in at.info))
+        self.assertEqual(len([c for c in at.checkbox if str(c.key).startswith("in_season_current_")]), 2)
 
     def test_season_teams_tab(self):
         at = run_app()

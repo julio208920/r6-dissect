@@ -158,7 +158,7 @@ _INSERT_ROUND = _insert("round_players", "match_id round player_key player team 
 _INSERT_TEAM_ROUND = _insert("team_rounds", "match_id round team side won planted man_down back_to_even")
 DATA_VERSION = 2  # 2: team_rounds. Matches read by an earlier version are read again, if their replays remain
 # how a round ends once the defuser is down, even when the kill feed missed the plant itself
-_PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser"}
+_PLANTED_ENDINGS = {"DefusedBomb", "DisabledDefuser", "bomb_detonated"}  # the last: the demo match's name
 _MATCH_FOLDER_TIME = re.compile(r"Match-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})")
 
 
@@ -447,3 +447,21 @@ class StatsDB:
             sql += " LIMIT ?"
             params.append(limit)
         return self.query(sql, params)
+
+    def team_matches(self, players: list[str], min_players: int = 1) -> list[dict[str, Any]]:
+        """The matches where at least min_players of `players` were on one side (the side with the
+        most of them), newest first: the match, that side ("team") and its result ("won": 1, 0, or
+        None for a draw), and how many of them played ("n")."""
+        keys = list(dict.fromkeys(p.strip().casefold() for p in players if p.strip()))
+        if not keys:
+            return []
+        return self.query(
+            f"""SELECT m.match_id, m.source, m.played_at, m.map, m.match_type, m.score0, m.score1, s.team, s.n,
+                       CASE WHEN m.score0 = m.score1 THEN NULL
+                            WHEN s.team = 0 THEN m.score0 > m.score1 ELSE m.score1 > m.score0 END AS won
+                FROM (SELECT match_id, team, COUNT(*) AS n, ROW_NUMBER() OVER (PARTITION BY match_id
+                      ORDER BY COUNT(*) DESC, team) AS pick
+                      FROM match_players WHERE player_key IN ({', '.join('?' * len(keys))}) GROUP BY match_id, team) s
+                JOIN matches m ON m.match_id = s.match_id
+                WHERE s.pick = 1 AND s.n >= ? ORDER BY m.played_at DESC, m.match_id""",
+            keys + [max(1, min_players)])
