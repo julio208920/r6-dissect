@@ -365,6 +365,70 @@ class TestAnalyticsPages(unittest.TestCase):
         self.assertIn("Back to even %", teams.columns)
         self.assertNotIn("K/D", teams.columns)
 
+    def test_pick_the_matches_that_count_for_the_season(self):
+        from sample_data import SAMPLE_MATCH, TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app(), count=3)
+        parsed = at.session_state["source"]["parsed"]
+        ids = [match["match_id"] for match, _raw, _warnings in parsed.values()]
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+            for match, _raw, _warnings in list(parsed.values())[:2]:  # two Game Day matches saved
+                tracker.log_match(match)
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        boxes = {i: at.checkbox(key=f"in_season_current_{i}") for i in ids}
+        self.assertEqual([boxes[i].value for i in ids], [True, True, False])
+        self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+        # the second was practice after all, and the third was Game Day
+        boxes[ids[1]].uncheck()
+        boxes[ids[2]].check()
+        at = next(b for b in at.button if b.label == "Save season matches").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.success[0].value, "Season matches saved: added 1 and took out 1.")
+        with StatsManager(season="current") as tracker:
+            self.assertEqual({m["match_id"] for m in tracker.match_history()}, {ids[0], ids[2]})
+            rounds = {p.username: p.totals["rounds_played"] for p in tracker.all_player_stats()}
+        self.assertEqual(rounds, {p: 2 * len(SAMPLE_MATCH["rounds"]) for p in TEAM0})  # two matches' worth
+        self.assertEqual([at.checkbox(key=f"in_season_current_{i}").value for i in ids], [True, False, True])
+        self.assertEqual({m.label: m.value for m in at.metric}["Maps"], "2")
+
+    def test_a_match_whose_replay_is_gone_cant_be_added(self):
+        from sample_data import TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")
+        at.switch_page("teams.py").run()  # both matches are in the stats database now
+        names = list(at.session_state["source"]["groups"])
+        ids = [match["match_id"] for match, _raw, _warnings in at.session_state["source"]["parsed"].values()]
+        source = at.session_state["source"]
+        del source["groups"][names[1]], source["parsed"][names[1]]  # the game deleted the second replay
+        at.session_state["source"] = source
+        for i in ids:
+            at.checkbox(key=f"in_season_current_{i}").check()
+        at = next(b for b in at.button if b.label == "Save season matches").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.success[0].value, "Season matches saved: added 1.")
+        self.assertIn("aren't on this PC anymore", at.warning[0].value)
+        with StatsManager(season="current") as tracker:
+            self.assertEqual([m["match_id"] for m in tracker.match_history()], [ids[0]])
+
+    def test_a_tracked_team_without_matches_can_pick_them(self):
+        from sample_data import TEAM0
+        from season_stats import StatsManager
+
+        at = with_matches(run_app())
+        with StatsManager(season="current") as tracker:
+            tracker.add_players(TEAM0, team="Squad")  # tracked, nothing saved yet
+        at.switch_page("teams.py").run()
+        self.assertFalse(at.exception)
+        self.assertEqual(next(s for s in at.selectbox if s.label == "Season team").value, "Squad")
+        self.assertTrue(any("No matches count for Squad" in i.value for i in at.info))
+        self.assertEqual(len([c for c in at.checkbox if str(c.key).startswith("in_season_current_")]), 2)
+
     def test_season_teams_tab(self):
         at = run_app()
         at.switch_page("teams.py").run()

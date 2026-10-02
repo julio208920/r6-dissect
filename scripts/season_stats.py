@@ -454,6 +454,19 @@ class StatsManager:
             args.append(username)
         return self._conn.execute(sql + " LIMIT 1", args).fetchone() is not None
 
+    def remove_match(self, match_id: str) -> int:
+        """Take a match out of this season (a practice match saved by mistake, say): its logged
+        rounds and EPS ratings go, and the season's totals are worked out again without it.
+        Returns how many player-rounds were removed."""
+        with self._conn:
+            removed = self._conn.execute("DELETE FROM logged_rounds WHERE season = ? AND match_id = ?",
+                                         (self.season, str(match_id))).rowcount
+            self._conn.execute("DELETE FROM match_ratings WHERE season = ? AND match_id = ?",
+                               (self.season, str(match_id)))
+        if removed:
+            self.rebuild_totals()
+        return removed
+
     def rebuild_totals(self) -> None:
         """Recompute this season's player_totals from logged_rounds (the
         per-round audit log). Use after manual DB edits or to verify integrity."""
@@ -495,6 +508,15 @@ class StatsManager:
     def all_player_stats(self) -> list[PlayerSeasonStats]:
         rows = self._conn.execute(self._STATS_SQL + " ORDER BY s.team, s.username", (self.season, self.season))
         return [self._player_from_row(r) for r in rows]
+
+    def tracked_teams(self) -> dict[str, list[str]]:
+        """{team: players} for every tracked player pinned to a team, whether or not any of
+        their matches are in this season yet."""
+        teams: dict[str, list[str]] = {}
+        for r in self._conn.execute("SELECT username, team FROM tracked_players WHERE team IS NOT NULL "
+                                    "ORDER BY team COLLATE NOCASE, added_at, username"):
+            teams.setdefault(r["team"], []).append(r["username"])
+        return teams
 
     def teams(self) -> list[str]:
         rows = self._conn.execute(
@@ -560,14 +582,19 @@ class StatsManager:
         )
         return sorted(r[0] for r in rows)
 
-    def match_history(self) -> list[dict[str, Any]]:
-        """Recorded matches for the selected season, newest first."""
+    def match_history(self, players: Iterable[str] | None = None) -> list[dict[str, Any]]:
+        """Recorded matches for the selected season, newest first; only those any of `players`
+        has rounds in, when given."""
+        names = list(players) if players is not None else None
+        only = f" AND username IN ({', '.join('?' * len(names))})" if names else ""
+        if names == []:
+            return []
         rows = self._conn.execute(
-            """SELECT match_id, MAX(logged_at) AS saved_at,
-                      COUNT(DISTINCT round_num) AS rounds,
-                      COUNT(DISTINCT username) AS players
-               FROM logged_rounds WHERE season = ?
-               GROUP BY match_id ORDER BY saved_at DESC, match_id""",
-            (self.season,),
+            f"""SELECT match_id, MAX(logged_at) AS saved_at,
+                       COUNT(DISTINCT round_num) AS rounds,
+                       COUNT(DISTINCT username) AS players
+                FROM logged_rounds WHERE season = ?{only}
+                GROUP BY match_id ORDER BY saved_at DESC, match_id""",
+            (self.season, *(names or [])),
         )
         return [dict(row) for row in rows]

@@ -12,8 +12,8 @@ import streamlit as st
 from app_info import is_public_host
 from ask_engine import eps_by_player, rate, team_report, team_summary
 from metrics_engine import pro_league_row, rows_csv
-from season_stats import StatsManager
-from sources import current_source, match_label, open_stats_db, sync_with_progress
+from season_stats import StatsError, StatsManager
+from sources import current_source, match_label, open_stats_db, parse, sync_with_progress
 from stats_db import nice_time
 from ui import md
 
@@ -91,6 +91,70 @@ def _delete_team(team: str) -> None:
         db.delete_roster(team)
     st.session_state["team_choice"] = NEW
     st.session_state.pop("team_shown", None)
+
+
+def _picker_key(season: str, match_id: str) -> str:
+    return f"in_season_{season}_{match_id}"
+
+
+def _season_matches(season: str, team: str, players: list[str], counted: set[str]) -> None:
+    """Pick which of a team's matches count toward the season: tick Game Day, untick practice.
+    Ticking a match reads its replay again and saves it to the season; unticking takes it out."""
+    with st.expander(f"Choose {md(team)}'s matches for {md(season)} ({len(counted)} counted)",
+                     expanded=not counted):
+        st.caption("Tick the matches that count toward this season, like your Game Day matches, and untick "
+                   "practice. Only ticked matches go into this season's stats. Adding a match needs its replay "
+                   "on this PC; taking one out doesn't.")
+        need = st.slider("Show matches with at least this many of the team on one side", 1, max(1, len(players)),
+                         min(3, max(1, len(players))), key=f"season_need_{season}_{team}")
+        with open_stats_db() as db:
+            rows = db.team_matches(players, need)
+        listed = {r["match_id"] for r in rows}
+        gone = sorted(counted - listed)  # counted, but not in the stats database (replay gone) or too few shown
+        if not rows and not gone:
+            st.info("No matches with that many of the team yet. Open their replays on **Dashboard**, or lower the "
+                    "number above.")
+            return
+        with st.form(f"season_matches_{season}_{team}", border=False):
+            box = st.container(height=min(420, 44 * (len(rows) + len(gone)) + 10))
+            for r in rows:
+                label = " · ".join(bit for bit in (match_label(r["source"], r), r["match_type"],
+                                                   f"{r['n']} of the team") if bit)
+                box.checkbox(md(label), value=r["match_id"] in counted, key=_picker_key(season, r["match_id"]))
+            for match_id in gone:
+                box.checkbox(f"{md(match_id)} · saved earlier, not in your stats database",
+                             value=True, key=_picker_key(season, match_id))
+            saved = st.form_submit_button("Save season matches", type="primary", disabled=is_public_host())
+        if saved:
+            ticked = {m for m in listed | set(gone) if st.session_state.get(_picker_key(season, m))}
+            _apply_season_matches(season, [r for r in rows if r["match_id"] in ticked - counted],
+                                  sorted((listed | set(gone)) & counted - ticked))
+
+
+def _apply_season_matches(season: str, add: list[dict], remove: list[str]) -> None:
+    """Save the ticked matches to the season (from their replays) and take out the unticked ones."""
+    failed = []
+    state = current_source()
+    groups = (state or {}).get("groups") or {}
+    with StatsManager(season=season) as manager:
+        for match_id in remove:
+            manager.remove_match(match_id)
+        for r in add:
+            label = match_label(r["source"], r)
+            parsed = parse(state, r["source"]) if r["source"] in groups else None
+            if parsed is None or isinstance(parsed, Exception):
+                failed.append(label)
+                continue
+            try:
+                manager.log_match(parsed[0])
+            except StatsError:
+                failed.append(label)
+    for key in [k for k in st.session_state if str(k).startswith(f"in_season_{season}_")]:
+        del st.session_state[key]  # the boxes show what's saved again
+    done = " and ".join(d for d in (f"added {len(add) - len(failed)}" if add else "",
+                                    f"took out {len(remove)}" if remove else "") if d)
+    st.session_state["season_message"] = (f"Season matches saved: {done}." if done else "Nothing changed.", failed)
+    st.rerun()
 
 
 st.title("Team Analytics")
@@ -181,63 +245,80 @@ with build_tab:
 
 # ------------------------------------------------------------ season teams --
 with season_tab:
-    st.caption("The season tracker: totals for the players you track, from the matches you save on the Dashboard.")
+    st.caption("The season tracker: the players you track and the matches you count toward the season. Pick the "
+               "matches below, or save one from the Dashboard.")
     season = st.text_input("Season", value=st.session_state.get("r6_season", "current"), key="team_season").strip() or "current"
     st.session_state["r6_season"] = season
     with StatsManager(season=season) as manager:
-        season_teams = [t for t in (manager.get_team_stats(n) for n in manager.teams()) if t]
+        season_teams = {t.team: t for t in (manager.get_team_stats(n) for n in manager.teams()) if t}
+        rosters = manager.tracked_teams()
+        for name, t in season_teams.items():  # a team's players: those pinned to it, and any with its matches
+            rosters[name] = list(dict.fromkeys(rosters.get(name, []) + t.players))
+        counted_by = {name: {m["match_id"] for m in manager.match_history(players)} for name, players in rosters.items()}
         saved = manager.match_history()
         snapshot = manager.export_json()
+    if message := st.session_state.pop("season_message", None):
+        st.success(message[0])
+        if message[1]:
+            st.warning("These couldn't be added, because their replays aren't on this PC anymore: "
+                       + md(", ".join(message[1])))
 
-    if not season_teams:
-        st.info("No team totals yet. Track a roster and save a match from Dashboard, or import a school roster first.")
+    if not rosters:
+        st.info("No season teams yet. Track a roster first: **Also track … in the season tracker** under Build a "
+                "team, the Dashboard's **Season tracker**, or **School Selection**. Then pick its matches here.")
     else:
-        # team stats and EPS are worked out again from the stats database, over the season's saved matches
+        selected = st.selectbox("Season team", sorted(rosters, key=str.casefold))
+        _season_matches(season, selected, rosters[selected], counted_by[selected])
         season_ids = [m["match_id"] for m in saved]
+        # team stats and EPS are worked out again from the stats database, over the season's matches
         with open_stats_db() as db:
-            summaries = {t.team: team_summary(db, t.players, 1, season_ids) for t in season_teams}
-            season_eps = eps_by_player(db, [p for t in season_teams for p in t.players], season_ids)
-            career = eps_by_player(db, [p for t in season_teams for p in t.players])
+            summaries = {name: team_summary(db, t.players, 1, season_ids) for name, t in season_teams.items()}
+            everyone = [p for t in season_teams.values() for p in t.players]
+            season_eps = eps_by_player(db, everyone, season_ids)
+            career = eps_by_player(db, everyone)
             in_db = db.query(f"SELECT COUNT(*) AS n FROM matches WHERE match_id IN ({', '.join('?' * len(season_ids))})",
                              season_ids)[0]["n"] if season_ids else 0
-        selected = st.selectbox("Season team", [t.team for t in season_teams])
-        team = next(t for t in season_teams if t.team == selected)
-        _team_stats(summaries[team.team])
-        if in_db < len(season_ids):
-            st.caption(f"{len(season_ids) - in_db} of the {len(season_ids)} matches saved to {md(season)} aren't in "
-                       "your stats database (their replays are gone), so these numbers leave them out.")
-        st.subheader("Roster performance")
-        st.dataframe([{
-            "Player": player.username,
-            # recalculated from the saved matches; the tracker's own number only if they're gone
-            "EPS": _fmt_eps(season_eps.get(player.username.casefold()) or player.eps),
-            "All-time EPS": _fmt_eps(career.get(player.username.casefold())),
-            "Rounds": player.totals["rounds_played"],
-            "K / D / A": f"{player.totals['kills']} / {player.totals['deaths']} / {player.totals['assists']}",
-            "K/D": round(player.kd, 2),
-            "Entry +/-": player.entry_diff,
-            "KOST": f"{player.kost_pct:.1f}%",
-            "HS": f"{player.hs_pct:.1f}%",
-            "Clutches": player.clutches_won,
-        } for player in team.member_stats], hide_index=True)
-        st.subheader("All season teams")
-        st.dataframe([{
-            "Team": t.team,
-            "Players": len(t.players),
-            "Maps": (s := summaries[t.team])["maps"],
-            "Map W–L": f"{s['maps_won']}–{s['maps_lost']}",
-            "Round W–L": f"{s['rounds_won']}–{s['rounds_lost']}",
-            "Round win %": _pct(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
-            "Man-down rounds": s["man_down"],
-            "Back to even %": _pct(s["man_down_even"], s["man_down"]),
-            "Man-down win %": _pct(s["man_down_won"], s["man_down"]),
-            "Plant %": _pct(s["plants"], s["attack_rounds"]),
-            "Plant stopped %": _pct(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
-            "Post-plant win %": _pct(s["post_plant_won"], s["post_plant"]),
-            "Retake win %": _pct(s["retakes_won"], s["retakes"]),
-        } for t in season_teams], hide_index=True)
-        st.caption("**EPS** is each player's over the matches saved to this season, and **All-time EPS** over "
-                   "every match they've played: both rounds-weighted averages of their per-match EPS.")
+        team = season_teams.get(selected)
+        if team is None:
+            st.info(f"No matches count for {md(selected)} in {md(season)} yet: tick them above.")
+        else:
+            _team_stats(summaries[team.team])
+            if in_db < len(season_ids):
+                st.caption(f"{len(season_ids) - in_db} of the {len(season_ids)} matches saved to {md(season)} aren't "
+                           "in your stats database (their replays are gone), so these numbers leave them out.")
+            st.subheader("Roster performance")
+            st.dataframe([{
+                "Player": player.username,
+                # recalculated from the season's matches; the tracker's own number only if they're gone
+                "EPS": _fmt_eps(season_eps.get(player.username.casefold()) or player.eps),
+                "All-time EPS": _fmt_eps(career.get(player.username.casefold())),
+                "Rounds": player.totals["rounds_played"],
+                "K / D / A": f"{player.totals['kills']} / {player.totals['deaths']} / {player.totals['assists']}",
+                "K/D": round(player.kd, 2),
+                "Entry +/-": player.entry_diff,
+                "KOST": f"{player.kost_pct:.1f}%",
+                "HS": f"{player.hs_pct:.1f}%",
+                "Clutches": player.clutches_won,
+            } for player in team.member_stats], hide_index=True)
+        if season_teams:
+            st.subheader("All season teams")
+            st.dataframe([{
+                "Team": t.team,
+                "Players": len(t.players),
+                "Maps": (s := summaries[t.team])["maps"],
+                "Map W–L": f"{s['maps_won']}–{s['maps_lost']}",
+                "Round W–L": f"{s['rounds_won']}–{s['rounds_lost']}",
+                "Round win %": _pct(s["rounds_won"], s["rounds_won"] + s["rounds_lost"]),
+                "Man-down rounds": s["man_down"],
+                "Back to even %": _pct(s["man_down_even"], s["man_down"]),
+                "Man-down win %": _pct(s["man_down_won"], s["man_down"]),
+                "Plant %": _pct(s["plants"], s["attack_rounds"]),
+                "Plant stopped %": _pct(s["defense_rounds"] - s["enemy_plants"], s["defense_rounds"]),
+                "Post-plant win %": _pct(s["post_plant_won"], s["post_plant"]),
+                "Retake win %": _pct(s["retakes_won"], s["retakes"]),
+            } for t in season_teams.values()], hide_index=True)
+            st.caption("**EPS** is each player's over the matches counted in this season, and **All-time EPS** "
+                       "over every match they've played: both rounds-weighted averages of their per-match EPS.")
     if saved:
         with open_stats_db() as db:  # name the saved matches the way the rest of the app does
             known = {r["match_id"]: r for r in db.match_list()}

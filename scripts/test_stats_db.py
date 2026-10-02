@@ -168,6 +168,22 @@ class TestImport(unittest.TestCase):
             with StatsDB(path) as db:  # only once
                 self.assertEqual(db.needs_import({"Match-1": ["r1", "r2", "r3"]}), [])
 
+    def test_a_teams_matches(self):
+        self.db.import_match("Match-2026-09-20_19-00-00-1", SAMPLE_MATCH)
+        mixed = copy.deepcopy(SAMPLE_MATCH)  # two of the team swapped to the other side
+        mixed["match_id"] = "mixed"
+        for p in mixed["players"]:
+            if p["name"] in TEAM0[3:]:
+                p["team"] = 1
+        self.db.import_match("Match-2026-09-21_19-00-00-1", mixed)
+        rows = self.db.team_matches([n.upper() for n in TEAM0])  # any case
+        self.assertEqual([(r["match_id"], r["team"], r["n"]) for r in rows],
+                         [("mixed", 0, 3), (SAMPLE_MATCH["match_id"], 0, 5)])  # newest first
+        score = SAMPLE_MATCH["final_score"]
+        self.assertEqual(rows[1]["won"], int(score[0] > score[1]))
+        self.assertEqual([r["match_id"] for r in self.db.team_matches(TEAM0, min_players=4)], [SAMPLE_MATCH["match_id"]])
+        self.assertEqual(self.db.team_matches([]), [])
+
     def test_importing_again_replaces_never_doubles(self):
         self.db.import_match("demo", SAMPLE_MATCH, files=5)
         self.db.import_match("demo", SAMPLE_MATCH, files=9)

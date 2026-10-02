@@ -119,7 +119,11 @@ The other pages work from every match, not just the one on the Dashboard:
   players you track are saved, and duplicate rounds are ignored. Each season
   team gets the same team stats, from the matches saved to the season, and
   each player's EPS is recalculated from those matches, alongside their
-  all-time EPS.
+  all-time EPS. Under **Choose … matches**, tick the matches that count toward
+  the season (your Game Day matches) and untick practice. A ticked match is
+  read from its replay and saved; an unticked one is taken out and the
+  season's totals are worked out again without it. Teams you've tracked show
+  up here before any of their matches are saved.
 - **Operator Analytics**: each operator's rounds, round win rate, K/D, KPR and
   headshot rate over **All matches** (for any player), or picks and site win
   rates for every player in **This match** (the Dashboard's match, or your
