@@ -108,18 +108,25 @@ jobs:
       - name: Scan with Microsoft Defender
         shell: pwsh
         run: |
+          # a release is only published once it's been scanned: if the scan can't run or doesn't
+          # finish, a release stops here (fail closed); any other build just warns
+          function Unscanned([string] $why) {
+            if ("${{ github.event_name }}" -eq "release") { throw "$why, so the release isn't being published" }
+            Write-Host "::warning::$why"
+            exit 0
+          }
           $mp = "$env:ProgramFiles\Windows Defender\MpCmdRun.exe"
           if (-not (Test-Path $mp) -or -not (Get-MpComputerStatus -ErrorAction SilentlyContinue).AntivirusEnabled) {
-            Write-Host "::warning::Microsoft Defender isn't running on this machine; skipping the scan"
-            exit 0
+            Unscanned "Microsoft Defender isn't running on this machine"
           }
           & $mp -SignatureUpdate | Out-Host
           # exit codes don't tell a failed scan from a detection, so read the verdict line instead
           $out = (& $mp -Scan -ScanType 3 -File "$PWD\dist" -DisableRemediation) -join "`n"
+          $code = $LASTEXITCODE
           $out
           if ($out -match 'found no threats') { "No threats found." }
           elseif ($out -match 'found \d+ threat') { throw "Microsoft Defender flagged a file in the build; not publishing it" }
-          else { Write-Host "::warning::The Defender scan didn't finish (exit code $LASTEXITCODE)" }
+          else { Unscanned "The Defender scan didn't finish (exit code $code)" }
           exit 0
 
       - name: Install

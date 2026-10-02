@@ -280,7 +280,9 @@ To build it on your own PC instead, run
   checksum (the download page shows it) and only download from the official
   release.
 - **Builds are scanned.** The release workflow scans each build with Microsoft
-  Defender and won't publish one it flags.
+  Defender and won't publish one it flags. A release is only published once
+  the scan has finished clean: if Defender isn't running or the scan doesn't
+  finish, the release stops there (other builds just warn).
 - **Releases are code-signed** once the repository has a signing certificate
   (see [desktop/README.md](../desktop/README.md#code-signing)). The download
   page then names the publisher and gives the certificate's thumbprint.
